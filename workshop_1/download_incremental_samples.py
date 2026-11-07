@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -28,13 +29,8 @@ SOURCES = {
     ),
 }
 
-
-def download_sample(name, url, extension):
-    filename = f"{name}_{timestamp}.{extension}"
-    output_path = OUTPUT_DIR / filename
-
-    print(f"Downloading {name}...")
-
+def fetch(url):
+    """Return the response body and headers of an HTTP GET request."""
     request = Request(
         url,
         headers={
@@ -43,16 +39,38 @@ def download_sample(name, url, extension):
     )
 
     with urlopen(request, timeout=30) as response:
-        content = response.read()
+        return response.read(), response.headers
 
+def download_sample(name, url, extension):
+    print(f"Downloading {name}...")
+
+    content, headers = fetch(url)
+
+    output_path = OUTPUT_DIR / f"{name}_{timestamp}.{extension}"
     output_path.write_bytes(content)
 
     print(f"Saved: {output_path.name}")
-    print(f"Size: {len(content)} bytes\n")
+    print(f"Size: {len(content)} bytes")
+    print(
+        f"Last-Modified: {headers.get('Last-Modified')} | "
+        f"ETag: {headers.get('ETag')}"
+    )
 
+    # Each Atom entry links to a CAP message with the alert details
+    if extension == "xml":
+        text = content.decode("utf-8", "replace")
+        cap_links = re.findall(r'href="([^"]+CAP\.xml)"', text)
+
+        for number, link in enumerate(cap_links, start=1):
+            cap_content, _ = fetch(link)
+            cap_path = OUTPUT_DIR / f"{name}_cap{number}_{timestamp}.xml"
+            cap_path.write_bytes(cap_content)
+            print(f"Saved: {cap_path.name} ({len(cap_content)} bytes)")
+
+    print()
 
 def main():
-    print("Starting incremental source downloads...\n")
+    print("Starting incremental source downloads...")
 
     for name, (url, extension) in SOURCES.items():
         try:
@@ -61,7 +79,6 @@ def main():
             print(f"Error downloading {name}: {error}")
 
     print("Download process finished.")
-
 
 if __name__ == "__main__":
     main()
