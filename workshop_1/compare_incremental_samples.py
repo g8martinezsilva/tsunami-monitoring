@@ -1,11 +1,12 @@
 import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from collections import Counter
 
 SAMPLES_DIR = Path(__file__).resolve().parent / "samples"
 
-FIRST_TIMESTAMP = "20261106_160144"
-SECOND_TIMESTAMP = "20261106_221239"
+FIRST_TIMESTAMP = "20261107_050434"
+SECOND_TIMESTAMP = "20261107_140301"
 
 ATOM = {"atom": "http://www.w3.org/2005/Atom"}
 
@@ -38,6 +39,12 @@ def compare_usgs():
     removed_ids = first_ids - second_ids
     common_ids = first_ids & second_ids
 
+    window_start = second["metadata"]["generated"] - 30 * 24 * 3600 * 1000
+    aged_out = {i for i in removed_ids
+                if first_events[i]["properties"]["time"] < window_start}
+    print(f"Removed because older than 30 days: {len(aged_out)}")
+    print(f"Removed for another reason: {len(removed_ids - aged_out)}")
+
     updated_ids = {
         event_id
         for event_id in common_ids
@@ -66,11 +73,15 @@ def compare_usgs():
             event["properties"].get("mag"),
             event["properties"].get("place")
         )
+    print("Updated event examples:")
 
-    print("\nUpdated event examples:")
     for event_id in sorted(updated_ids)[:5]:
         old = first_events[event_id]["properties"]
         new = second_events[event_id]["properties"]
+        changed = [k for k in new if old.get(k) != new.get(k)]
+        print(event_id, "changed fields:", changed)
+        for k in changed:
+            print(f"   {k}: {old.get(k)} -> {new.get(k)}")
 
         print(
             event_id,
@@ -79,6 +90,13 @@ def compare_usgs():
             "->",
             new.get("mag")
         )
+        field_counts = Counter()
+        
+    for event_id in updated_ids:
+        old = first_events[event_id]["properties"]
+        new = second_events[event_id]["properties"]
+        field_counts.update(k for k in new if old.get(k) != new.get(k))
+    print("Fields changed across all updated events:", dict(field_counts))
 
 def read_atom_entries(file_path):
     tree = ET.parse(file_path)
