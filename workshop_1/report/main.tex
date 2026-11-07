@@ -1,0 +1,392 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[english]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue]{hyperref}
+
+\renewcommand{\arraystretch}{1.25}
+
+% Red reminder. Search for "TODO" before submitting.
+\providecommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible
+}
+
+\begin{document}
+
+% ------------------------------------------------------------------
+% TITLE PAGE
+% ------------------------------------------------------------------
+\begin{titlepage}
+  \centering
+  {\large Universidad Distrital Francisco Jos\'e de Caldas\\
+  School of Engineering -- Computer Engineering Program\par}
+  \vspace{1.5cm}
+  {\Large Data Analysis Programming -- Semester 2026-II\par}
+  \vspace{1cm}
+  {\LARGE\bfseries Workshop No.\ 1\\[0.3cm]
+  Hazard Definition, Source Validation,\\and Data Contract\par}
+  \vspace{1.5cm}
+  {\Large Team 8 -- Tsunami Monitoring\par}
+  \vspace{1cm}
+  \begin{tabular}{ll}
+    Lina Moreno & 20231020133 \\
+    Jaider \'Avila & 20231020200 \\
+    Gabriela Mart\'inez & 20231020205 \\
+  \end{tabular}
+  \vspace{1.5cm}
+
+  Professor: Eng.\ Carlos Andr\'es Sierra, M.Sc.\par
+  \vspace{0.5cm}
+  Repository: \url{https://github.com/g8martinezsilva/tsunami-monitoring}\par
+  \vfill
+  \today
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+% One file per section, so that each person edits a different file.
+
+% ===== 00_summary.tex =====
+% Owner: TBD
+\section*{Executive Summary}
+\todo{Five to eight lines: hazard, scope, the four sources, main findings of the profiling, and the proposed indicator.}
+
+
+
+% ===== 01_hazard.tex =====
+% Owner: TBD
+\section{Hazard Definition}
+\label{sec:hazard}
+
+\subsection{Phenomenon and Severity Measure}
+\todo{What a tsunami is, how it is caused, how it is measured. Severity measure of the system (earthquake magnitude and its type, depth in km) and meaning of the units.}
+
+\subsection{Why Monitoring Matters}
+\todo{Motivation. State that the system supports monitoring and correlation and does \textbf{not} predict tsunamis.}
+
+\subsection{Geographic and Temporal Scope}
+\todo{Pacific basin, 2010--2025, earthquakes $M \geq 6$. Justify with data volume and with the coverage of all four sources (tsunami.gov covers the Pacific, Alaska, the US and the Caribbean).}
+
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+Source & Coverage & Fits the scope? \\
+\midrule
+NOAA HazEL & Global & \todo{yes, filtered by region codes 80--89} \\
+USGS FDSN & Global & \todo{yes, filtered by rectangle} \\
+USGS real-time feeds & Global & \todo{yes} \\
+tsunami.gov & Pacific, Alaska, US, Caribbean & \todo{yes} \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Meaning of ``Current Situation''}
+\todo{For example: earthquakes of the last 24 hours and 7 days, and the latest tsunami.gov message.}
+
+
+
+% ===== 02_historical.tex =====
+% Owner: TBD
+\section{Historical Sources}
+\label{sec:historical}
+
+\subsection{NOAA/NCEI HazEL -- Global Historical Tsunami Database}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Owner & \todo{NOAA National Centers for Environmental Information (NCEI)} \\
+URL & \url{https://www.ngdc.noaa.gov/hazel/view/swagger} \\
+Access method & REST API, JSON \\
+Authentication & None required \\
+Rate limits & \todo{verify and cite} \\
+License and attribution & \todo{verify and cite} \\
+Fields used & \todo{list, e.g.\ year, month, day, latitude, longitude, causeCode, eventValidity, eqMagnitude} \\
+Time coverage & \todo{from the catalog start to the present} \\
+Update policy & \todo{} \\
+\bottomrule
+\end{tabularx}
+
+\paragraph{Evidence.} \todo{Real response snippet (see Appendix~\ref{app:snippets}) and the file under \path{workshop_1/samples/}.}
+
+\paragraph{Volume and partitioning.} \todo{Records in scope (2010--2025, regions 80--89), size, pagination of 200 records per page, and how the bulk load will be partitioned.}
+
+\subsection{USGS FDSN Event Web Service}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Owner & U.S.\ Geological Survey, Earthquake Hazards Program \\
+URL & \url{https://earthquake.usgs.gov/fdsnws/event/1/} \\
+Access method & REST API, CSV (also GeoJSON and QuakeML) \\
+Authentication & None required \\
+Rate limits & \todo{maximum 20,000 events per request; cite documentation} \\
+License and attribution & \todo{verify and cite} \\
+Fields used & \todo{id, time, latitude, longitude, depth, mag, magType, status, updated} \\
+Time coverage & \todo{} \\
+Update policy & \todo{reviewed events are revised later; see Section~\ref{sec:incremental}} \\
+\bottomrule
+\end{tabularx}
+
+\paragraph{Evidence.} \todo{}
+\paragraph{Volume and partitioning.} \todo{Estimate for 2010--2025 and the decision to load one year at a time.}
+
+
+
+% ===== 03_incremental.tex =====
+% Owner: TBD
+\section{Incremental Sources}
+\label{sec:incremental}
+
+\subsection{USGS Real-Time GeoJSON Feed}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+URL & \url{https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php} \\
+Feed used & Magnitude 4.5+, past 30 days \\
+Format & GeoJSON \\
+Update frequency & \todo{the server sets a cache of 60 seconds} \\
+Change detection & \todo{\texttt{updated} field, stable \texttt{id}, Last-Modified header} \\
+\bottomrule
+\end{tabularx}
+
+\subsection{tsunami.gov Warning Centers}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+URL (NTWC) & \url{https://www.tsunami.gov/events/xml/PAAQAtom.xml} \\
+URL (PTWC) & \url{https://www.tsunami.gov/events/xml/PHEBAtom.xml} \\
+Format & Atom feed; each entry links to a CAP message \\
+Content & \todo{one latest message per feed; most messages are information statements} \\
+Change detection & \todo{entry id, \texttt{updated}, Last-Modified header} \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Empirical Update Behavior}
+Two snapshots were taken on 7 November 2026 at 05:04 and 14:03 UTC (about 9 hours apart).
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrr}
+\toprule
+ & USGS feed & tsunami.gov (NTWC, PTWC) \\
+\midrule
+First snapshot (records) & 714 & 1 per feed \\
+Second snapshot (records) & 726 & 1 per feed \\
+New & 22 & 0 \\
+Modified & 25 & 0 \\
+Removed & 10 & 0 \\
+\bottomrule
+\end{tabular}
+\caption{Changes between the two snapshots.}
+\end{table}
+
+\todo{Explain: all 10 removed events left the rolling 30-day window (none was deleted); fields that changed in the modified events (time, place, magnitude, station counts); event ids stayed stable.}
+
+\subsection{Revised or Deleted Records and Watermark Implications}
+\todo{Watermark on \texttt{updated}, upsert on (source, id), content hash to separate real changes from timestamp-only updates, overlap window.}
+
+
+
+% ===== 04_profiling.tex =====
+% Owner: TBD
+\section{Source Profiling and Data Quality}
+\label{sec:profiling}
+
+\subsection{Profiling Summary}
+\todo{Rows, null percentages, ranges, duplicated identifiers, timestamp format and time zone, coordinate validity and units for each source. Reference the notebook \path{notebooks/01_source_profiling.ipynb}.}
+
+\begin{tabularx}{\textwidth}{@{}lrrX@{}}
+\toprule
+Source & Records & Duplicated ids & Notes \\
+\midrule
+NOAA HazEL & \todo{} & \todo{} & \todo{} \\
+USGS FDSN & \todo{} & \todo{} & \todo{} \\
+USGS real-time & \todo{} & \todo{} & \todo{} \\
+tsunami.gov & \todo{} & \todo{} & \todo{} \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Data-Quality Problems}
+At least five, each with an example record.
+
+\begin{tabularx}{\textwidth}{@{}clXX@{}}
+\toprule
+\# & Source & Problem & Example record \\
+\midrule
+1 & NOAA HazEL & Official warning status missing & \todo{} \\
+2 & NOAA HazEL & Erroneous or doubtful events & \todo{} \\
+3 & NOAA HazEL & Time of day or coordinates missing & \todo{} \\
+4 & USGS FDSN & Columns that are always empty & \todo{} \\
+5 & tsunami.gov & Location as free text; depth units differ & \todo{} \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Cross-Source Overlap}
+At least five candidate pairs describing the same real-world event.
+
+\begin{tabularx}{\textwidth}{@{}clllllX@{}}
+\toprule
+\# & Source A id & Source B id & $\Delta t$ & Distance & Magnitude & What differs \\
+\midrule
+1 & PAAQ-1-to0j1g & nc75462637 & $-1.3$ s & 8.7 km & 4.5 Ml / 4.96 mw & magnitude type, depth, location text \\
+2 & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} \\
+3 & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} \\
+4 & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} \\
+5 & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} \\
+\bottomrule
+\end{tabularx}
+
+
+
+% ===== 05_mapping.tex =====
+% Owner: TBD
+\section{Canonical Mapping}
+\label{sec:mapping}
+
+\subsection{Field Mapping to the Canonical \texttt{event}}
+\begin{tabularx}{\textwidth}{@{}lXXXX@{}}
+\toprule
+Canonical field & NOAA HazEL & USGS FDSN / feed & tsunami.gov (CAP) & Rule \\
+\midrule
+\texttt{event\_id} & \todo{} & \todo{} & \todo{} & \todo{} \\
+\texttt{source} & \todo{} & \todo{} & \todo{} & \todo{} \\
+\texttt{event\_type} & \todo{} & \todo{} & \todo{} & \todo{} \\
+\texttt{timestamp} (UTC) & \todo{} & \todo{} & \todo{} & \todo{} \\
+\texttt{latitude} & \todo{} & \todo{} & \todo{} & WGS84 \\
+\texttt{longitude} & \todo{} & \todo{} & \todo{} & WGS84, $-180$ to $180$ \\
+\texttt{severity} & \todo{} & \todo{} & \todo{} & \todo{value and unit/type} \\
+\texttt{raw\_reference} & \todo{} & \todo{} & \todo{} & id or URL plus content hash \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Domain Tables}
+\todo{Proposed tables (for example \texttt{earthquake}, \texttt{tsunami\_event}, \texttt{tsunami\_alert}) with their attributes.}
+
+\subsection{Unit Conversions and Rules}
+\todo{Timestamps (UTC), coordinates (WGS84), longitude normalization, depth units, magnitude types and severity scale.}
+
+\subsection{Draft ER Diagram}
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.8\textwidth}{\centering\vspace{3cm}\todo{insert ER diagram}\vspace{3cm}}}
+% \includegraphics[width=\textwidth]{figures/er_diagram.png}
+\caption{First draft of the entity-relationship diagram.}
+\end{figure}
+
+
+
+% ===== 06_contract.tex =====
+% Owner: TBD
+\section{Ingestion Contract Draft}
+\label{sec:contract}
+
+\begin{tabularx}{\textwidth}{@{}lXXXX@{}}
+\toprule
+Source & Historical strategy & Incremental strategy & Duplicate key & Overlap window \\
+\midrule
+NOAA HazEL & \todo{} & \todo{} & \todo{} & \todo{} \\
+USGS FDSN & \todo{} & \todo{} & \todo{} & \todo{} \\
+USGS real-time feed & -- & \todo{} & \todo{} & \todo{} \\
+tsunami.gov & -- & \todo{} & \todo{} & \todo{} \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Correctness After a Failed Run}
+\todo{The watermark advances only after a successful commit; idempotent writes; what happens to a partially loaded batch.}
+
+
+
+% ===== 07_project.tex =====
+% Owner: TBD
+\section{Project Definition}
+\label{sec:project}
+
+\subsection{Project Overview}
+\todo{Title, motivation, goal (data-engineering and analytical), scope, explicit exclusions and constraints.}
+
+\subsection{Functional User}
+\todo{Role, profile, decisions supported, and why the dashboard is useful.}
+
+\subsection{User Stories}
+\begin{tabularx}{\textwidth}{@{}clXc@{}}
+\toprule
+ID & Type & Story & MoSCoW \\
+\midrule
+US1 & Monitoring & As a \todo{user}, I want to \todo{action} so that \todo{benefit}. & \todo{} \\
+US2 & Monitoring & \todo{} & \todo{} \\
+US3 & Analysis & \todo{} & \todo{} \\
+US4 & Analysis & \todo{} & \todo{} \\
+US5 & Trust & \todo{} & \todo{} \\
+US6 & Trust & \todo{} & \todo{} \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Indicator Proposal}
+\todo{Name, inputs (magnitude, depth, location, historical tsunami association, official alert), rule, output scale, how it will be validated against historical events. State clearly that it is a monitoring aid and not a prediction, and list its limitations.}
+
+\subsection{Risks and Mitigation}
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+Risk & Impact & Mitigation \\
+\midrule
+Source outage & \todo{} & \todo{} \\
+Rate limits & \todo{} & \todo{} \\
+Schema change & \todo{} & \todo{} \\
+License and attribution & \todo{} & \todo{} \\
+Ambiguous identifiers & \todo{} & \todo{} \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Architecture Overview}
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.8\textwidth}{\centering\vspace{3cm}\todo{insert architecture diagram}\vspace{3cm}}}
+% \includegraphics[width=\textwidth]{figures/architecture.png}
+\caption{High-level architecture adapted to tsunami monitoring.}
+\end{figure}
+
+
+
+% ===== 08_conclusions.tex =====
+% Owner: TBD
+\section*{Conclusions and Open Questions}
+\addcontentsline{toc}{section}{Conclusions and Open Questions}
+\todo{Main decisions taken in this workshop and what remains open for Workshop 2.}
+
+
+
+% ===== 09_references.tex =====
+% Owner: TBD
+\begin{thebibliography}{9}
+\bibitem{hazel} NOAA National Centers for Environmental Information. \emph{Hazard Event Database (HazEL), Global Historical Tsunami Database}. \url{https://www.ngdc.noaa.gov/hazel/view/swagger}. Accessed \todo{date}.
+\bibitem{usgsfdsn} U.S.\ Geological Survey. \emph{API Documentation -- Earthquake Catalog}. \url{https://earthquake.usgs.gov/fdsnws/event/1/}. Accessed \todo{date}.
+\bibitem{usgsfeed} U.S.\ Geological Survey. \emph{Real-time Notifications, Feeds, and Web Services (GeoJSON summary feed)}. \url{https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php}. Accessed \todo{date}.
+\bibitem{tsunamigov} NOAA National Weather Service, Tsunami Warning Centers. \emph{Tsunami event feeds}. \url{https://www.tsunami.gov/}. Accessed \todo{date}.
+\end{thebibliography}
+
+
+
+\appendix
+
+% ===== 10_appendix.tex =====
+% Owner: TBD
+\section{Real Response Snippets}
+\label{app:snippets}
+\todo{Short excerpts of the unmodified responses, one per source, with the file name in \path{workshop_1/samples/}.}
+
+\begin{lstlisting}
+(paste a short excerpt here)
+\end{lstlisting}
+
+
+
+\end{document}
