@@ -8,7 +8,9 @@ A tsunami is a series of ocean waves usually caused by a large undersea earthqua
 
 This is a monitoring and correlation tool. It does not predict tsunamis.
 
-**Scope:** to be defined in Workshop 1.
+**Scope:** Pacific basin, including Alaska and Hawaii, for 2010–2025. NOAA HazEL regions 80–89 and the USGS rectangle latitude −60..65, longitude 100..300 define the historical samples; earthquakes have magnitude ≥ 6.
+
+Regenerate historical samples with `python3 workshop_1/download_historical_samples.py --force`.
 
 ## Team
 

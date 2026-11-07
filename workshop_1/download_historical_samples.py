@@ -38,6 +38,9 @@ HEADERS = {"User-Agent": "UDistrital-Team8-Tsunami-Monitoring/1.0"}
 NOAA_START_YEAR = 2010
 NOAA_END_YEAR = 2025
 PAGE_SIZE = 200
+PACIFIC_REGION_CODES = "80,81,82,83,84,85,86,87,88,89"  # NOAA HazEL regions
+PACIFIC_BOX = {"minlatitude": -60, "maxlatitude": 65,
+               "minlongitude": 100, "maxlongitude": 300}
 
 def fetch_data(url, params, retries=3):
     """Make an HTTP GET request, retrying temporary request failures."""
@@ -68,15 +71,16 @@ def get_or_download(filename, url, params, force=False):
     return content
 
 def download_noaa_events(force=False):
-    """Read all pages of the NOAA tsunami events query for 2010-2025."""
+    """Read all pages of Pacific NOAA tsunami events for 2010-2025."""
     print("\nNOAA HISTORICAL TSUNAMI EVENTS")
     base_params = {
         "minYear": NOAA_START_YEAR,
         "maxYear": NOAA_END_YEAR,
         "itemsPerPage": PAGE_SIZE,
+        "regionCode": PACIFIC_REGION_CODES,
     }
     first_content = get_or_download(
-        "noaa_tsunamis_2010_2025.json",
+        "noaa_tsunamis_pacific_2010_2025.json",
         NOAA_EVENTS_URL,
         {**base_params, "page": 1},
         force,
@@ -93,7 +97,7 @@ def download_noaa_events(force=False):
             data = first_page
         else:
             content = get_or_download(
-                f"noaa_tsunamis_page{page}.json",
+                f"noaa_tsunamis_pacific_page{page}.json",
                 NOAA_EVENTS_URL,
                 {**base_params, "page": page},
                 force,
@@ -119,13 +123,14 @@ def download_noaa_events(force=False):
     # Keep a small, year-specific response as additional evidence.
     sample_2011 = json.loads(
         get_or_download(
-            "noaa_tsunamis_2011.json",
+            "noaa_tsunamis_pacific_2011.json",
             NOAA_EVENTS_URL,
-            {"minYear": 2011, "maxYear": 2011, "itemsPerPage": PAGE_SIZE},
+            {"minYear": 2011, "maxYear": 2011, "itemsPerPage": PAGE_SIZE,
+             "regionCode": PACIFIC_REGION_CODES},
             force,
         )
     )
-    print(f"NOAA 2011 sample: {len(sample_2011['items'])} records")
+    print(f"NOAA Pacific 2011 sample: {len(sample_2011['items'])} records")
     return events
 
 def download_noaa_runup_sample(events, event_id=4682, force=False):
@@ -187,18 +192,19 @@ def download_noaa_descriptors(events, force=False):
     return descriptors
 
 def download_usgs(force=False):
-    """Download all USGS earthquakes of magnitude >= 6 during 2011."""
+    """Download Pacific USGS earthquakes of magnitude >= 6 in 2010-2011."""
 
     print("\nUSGS HISTORICAL EARTHQUAKES")
 
     params = {
         "format": "csv",
-        "starttime": "2011-01-01T00:00:00",
-        "endtime": "2011-12-31T23:59:59.999",
+        "starttime": "2010-01-01",
+        "endtime": "2012-01-01",
         "minmagnitude": 6,
+        **PACIFIC_BOX,
     }
 
-    filename = "usgs_earthquakes_2011_m6.csv"
+    filename = "usgs_earthquakes_2010_2011_m6_pacific.csv"
 
     content = get_or_download(
         filename,
@@ -233,7 +239,7 @@ def download_usgs(force=False):
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate USGS earthquake IDs detected")
 
-        # Compare against the count method (same filters, no format parameter)
+    # Compare against the count method (same filters, no format parameter)
     count_params = {k: v for k, v in params.items() if k != "format"}
     expected = int(fetch_data(USGS_COUNT_URL, count_params).decode().strip())
     if len(records) != expected:
@@ -252,9 +258,9 @@ def download_usgs(force=False):
                 f"Invalid magnitude for event {record['id']}"
             )
 
-        if not record["time"].startswith("2011-"):
+        if not ("2010-01-01" <= record["time"][:10] < "2012-01-01"):
             raise ValueError(
-                f"Event outside 2011: {record['id']}"
+                f"Event outside 2010-2011: {record['id']}"
             )
 
     print(f"USGS records: {len(records)}")
@@ -312,7 +318,7 @@ def main():
         f"{runup_sample['count']} of {runup_sample['total']}"
     )
 
-    print(f"USGS earthquakes (2011, M>=6): {len(usgs_records)}")
+    print(f"USGS Pacific earthquakes (2010-2011, M>=6): {len(usgs_records)}")
 
     print("\nHistorical source exploration completed successfully.")
 

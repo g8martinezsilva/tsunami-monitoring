@@ -81,16 +81,18 @@
 \todo{Motivation. State that the system supports monitoring and correlation and does \textbf{not} predict tsunamis.}
 
 \subsection{Geographic and Temporal Scope}
-\todo{Pacific basin, 2010--2025, earthquakes $M \geq 6$. Justify with data volume and with the coverage of all four sources (tsunami.gov covers the Pacific, Alaska, the US and the Caribbean).}
+The project covers the Pacific basin, including Alaska and Hawaii, during 2010--2025, with earthquakes of magnitude $M \geq 6$.
+NOAA HazEL regions 80--89 and a USGS rectangle (latitude $-60$ to $65$, longitude $100$ to $300$) provide geographic filters; the USGS historical sample covers 2010--2011 to meet the workshop's 200-record requirement.
+The two real-time feeds are profiled in full, with Pacific events identified by coordinates; tsunami.gov covers the Pacific, Alaska, the US and the Caribbean.
 
 \begin{tabularx}{\textwidth}{@{}lXX@{}}
 \toprule
 Source & Coverage & Fits the scope? \\
 \midrule
-NOAA HazEL & Global & \todo{yes, filtered by region codes 80--89} \\
-USGS FDSN & Global & \todo{yes, filtered by rectangle} \\
-USGS real-time feeds & Global & \todo{yes} \\
-tsunami.gov & Pacific, Alaska, US, Caribbean & \todo{yes} \\
+NOAA HazEL & Global & Yes, regions 80--89 \\
+USGS FDSN & Global & Yes, Pacific rectangle \\
+USGS real-time feeds & Global & Yes, in-scope events identified by coordinates \\
+tsunami.gov & Pacific, Alaska, US, Caribbean & Yes, in-scope events identified by coordinates \\
 \bottomrule
 \end{tabularx}
 
