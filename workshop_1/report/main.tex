@@ -86,7 +86,7 @@ Since no single measure describes tsunami severity, the system combines the vari
 \begin{table}[H]
 \centering
 \small
-\begin{tabularx}{\textwidth}{@{}p{3.5cm}p{3.2cm}p{2.6cm}X@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.5cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}X@{}}
 \toprule
 Measure & Unit & Source & Meaning \\
 \midrule
@@ -104,7 +104,7 @@ Official alert (CAP \texttt{severity}, \texttt{certainty}) & Categorical (e.g.\ 
 
 \paragraph{Note on depth in HazEL.}
 The HazEL Swagger defines \texttt{eqDepth} as an integer (int32) and does not state its unit.
-We interpret it as kilometers because it matches the USGS depth (km) for the matched events: in 25 of the 28 NOAA--USGS pairs of the sample (Section~\ref{sec:profiling}) the difference is 2~km or less.
+We interpret it as kilometers because it matches the USGS depth (km) for the matched events: in 25 of the 28 NOAA--USGS pairs of the sample (Section 6 of \path{notebooks/01_source_profiling.ipynb}) the difference is 2~km or less.
 Being an integer, it loses the decimals that USGS provides.
 
 \subsection{Why Monitoring Matters}
@@ -115,16 +115,16 @@ The system supports monitoring and correlation and does \textbf{not} predict tsu
 \subsection{Geographic and Temporal Scope}
 The project covers the Pacific basin, including Alaska and Hawaii, during 2010--2025, with earthquakes of magnitude $M \geq 6$.
 NOAA HazEL regions 80--89 and a USGS rectangle (latitude $-60$ to $65$, longitude $100$ to $300$) provide geographic filters, and a Pacific polygon removes the non-Pacific parts of the rectangle (Section~\ref{sec:historical}); the USGS historical sample covers 2010--2011 to meet the workshop's 200-record requirement.
-The two real-time feeds are profiled in full, with Pacific events identified by coordinates; tsunami.gov covers the Pacific, Alaska, the US and the Caribbean.
+The two real-time feeds are profiled in full, and their Pacific events are selected with the same polygon; tsunami.gov covers the Pacific, Alaska, the US and the Caribbean.
 
-\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}lXX@{}}
 \toprule
 Source & Coverage & Fits the scope? \\
 \midrule
-NOAA HazEL & Global & Yes, regions 80--89 \\
-USGS FDSN & Global & Yes, Pacific rectangle \\
-USGS real-time feeds & Global & Yes, in-scope events identified by coordinates \\
-tsunami.gov & Pacific, Alaska, US, Caribbean & Yes, in-scope events identified by coordinates \\
+NOAA HazEL & Global & Yes, regions 80--89 in the query, then the Pacific polygon \\
+USGS FDSN & Global & Yes, Pacific rectangle in the query, then the Pacific polygon \\
+USGS real-time feeds & Global & Yes, events selected with the Pacific polygon \\
+tsunami.gov & Pacific, Alaska, US, Caribbean & Yes, messages selected by the coordinates of their earthquake (Pacific polygon) \\
 \bottomrule
 \end{tabularx}
 
@@ -145,7 +145,7 @@ In contrast, the statistics, the comparison with the historical record and the i
 \label{sec:historical}
 
 \subsection{NOAA/NCEI HazEL -- Global Historical Tsunami Database}
-\begin{tabularx}{\textwidth}{@{}lX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}lX@{}}
 \toprule
 Owner & NOAA National Centers for Environmental Information (NCEI) \\
 URL & \url{https://www.ngdc.noaa.gov/hazel/view/swagger} \\
@@ -178,7 +178,7 @@ We do not load them: the indicator works at event level, and the events table al
 One page of run-ups for event 4682 is kept as evidence (\path{noaa_runups_event_4682_page1.json}); loading the full table is left as future work.
 
 \subsection{USGS FDSN Event Web Service}
-\begin{tabularx}{\textwidth}{@{}lX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}lX@{}}
 \toprule
 Owner & U.S.\ Geological Survey, Earthquake Hazards Program \\
 URL & \url{https://earthquake.usgs.gov/fdsnws/event/1/} \\
@@ -187,7 +187,7 @@ Authentication & None required \\
 Rate limits & Maximum of 20,000 events per request (error 400 if exceeded)~\cite{usgsfdsn}. No numeric limit on requests per minute is documented; the documentation defines time $\times$ area limits that are not enforced yet but may be, and recommends the real-time feeds for automated applications. Team policy: one request per year, sequential, with caching. \\
 License and attribution & U.S.\ public domain: most USGS information may be used without restriction. Credit is requested, not mandatory~\cite{usgscredit}; credit line used by the team: ``USGS Earthquake Catalog data courtesy of the U.S.\ Geological Survey''. \\
 Fields used & \texttt{id}, \texttt{time}, \texttt{latitude}, \texttt{longitude}, \texttt{depth}, \texttt{mag}, \texttt{magType}, \texttt{net}, \texttt{place}, \texttt{status}, \texttt{updated} \\
-Time coverage & Catalog of several decades; we load 2010--2025 with $M \geq 6$ inside the Pacific rectangle. \\
+Time coverage & Catalog of several decades; we load 2010--2025 with $M \geq 6$ inside the Pacific rectangle, then apply the Pacific polygon. \\
 Update policy & Reviewed events are revised later (\texttt{updated}, magnitude and location can change). The service offers the \texttt{updatedafter} parameter, and deleted events return HTTP 409 unless \texttt{includedeleted} is requested; see Section~\ref{sec:incremental}. \\
 \bottomrule
 \end{tabularx}
@@ -197,7 +197,8 @@ Query used for the historical sample; the unmodified response is stored in \path
 \begin{lstlisting}
 GET https://earthquake.usgs.gov/fdsnws/event/1/query?format=csv
     &starttime=2010-01-01&endtime=2012-01-01&minmagnitude=6
-    &minlatitude=-60&maxlatitude=65&minlongitude=100&maxlongitude=300
+    &minlatitude=-60&maxlatitude=65
+    &minlongitude=100&maxlongitude=300
 \end{lstlisting}
 The download script compares the number of downloaded records (343) with the result of the \texttt{count} method.
 A short excerpt of the response is in Appendix~\ref{app:snippets}.
@@ -230,6 +231,8 @@ Although these 1,930 events fit under the limit of 20,000 per request, we load o
 The documentation also defines time $\times$ area limits that are not enforced today but could be: a single 2010--2025 query over our rectangle amounts to about 146 million square-degree-days (5,844 days $\times$ 25,000 square degrees), above the 100 million cap of the \texttt{count} method, while each yearly partition amounts to about 9.15 million.
 Partitioning also allows retrying a single failed year without repeating the others and makes the load resumable.
 Each response is stored unchanged in the raw landing zone as \path{usgs_YYYYMMDD_HHMMSS.csv}.
+
+\paragraph{Pacific polygon.}
 The rectangle is only a coarse query filter: it also contains areas outside the Pacific basin, such as the Caribbean and the Gulf of Mexico (longitudes $270$ to $300$) and parts of the Indian Ocean (south of Sumatra and Java, and off western Australia).
 Therefore a Pacific polygon filter is applied afterwards, during the load into the database, and the events it removes are counted in the \texttt{ingestion\_run} record.
 The polygon is stored as GeoJSON in \path{config/pacific_polygon.geojson} and has the 25 vertices of Table~\ref{tab:polygon}.
@@ -272,29 +275,42 @@ The seven HazEL events are landslide-generated waves in rivers, lakes and reserv
 \label{sec:incremental}
 
 \subsection{USGS Real-Time GeoJSON Feed}
-\begin{tabularx}{\textwidth}{@{}lX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}lX@{}}
 \toprule
+Owner & U.S.\ Geological Survey, Earthquake Hazards Program \\
 URL & \url{https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php} \\
-Feed used & Magnitude 4.5+, past 30 days \\
-Format & GeoJSON \\
-Update frequency & \todo{the server sets a cache of 60 seconds} \\
-Change detection & \todo{\texttt{updated} field, stable \texttt{id}, Last-Modified header} \\
+Feed used & Magnitude 4.5+, past 30 days (\path{summary/4.5_month.geojson}) \\
+Access method & HTTP GET of a static file, GeoJSON \\
+Authentication & None required \\
+Rate limits & No numeric limit is documented; USGS recommends these feeds, rather than the FDSN service, for automated applications~\cite{usgsfeed}. The response carries \texttt{Cache-Control: max-age=60}, so polling more than once per minute returns no new data. Team policy: identified User-Agent, at most one request per minute, retries with increasing wait. \\
+License and attribution & U.S.\ public domain; credit requested~\cite{usgscredit}, same credit line as in Section~\ref{sec:historical}. \\
+Fields used & \texttt{id}, \texttt{time}, \texttt{updated}, \texttt{mag}, \texttt{magType}, \texttt{place}, \texttt{status}, \texttt{type}, \texttt{tsunami}, \texttt{net}, and \texttt{geometry.coordinates} (longitude, latitude, depth in km) \\
+Coverage & Global, rolling window of the last 30 days, $M \geq 4.5$; Pacific events are selected with the polygon of Section~\ref{sec:historical}. \\
+Update frequency & Regenerated every minute (\texttt{Last-Modified} advances each minute; \texttt{Expires} is 60 seconds later). \\
+Change detection & Stable event \texttt{id}; the \texttt{updated} field (epoch milliseconds) changes whenever an event is revised. The HTTP \texttt{Last-Modified} header only shows that the file was regenerated, not that an event changed, and no \texttt{ETag} is sent. \\
 \bottomrule
 \end{tabularx}
 
 \subsection{tsunami.gov Warning Centers}
-\begin{tabularx}{\textwidth}{@{}lX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}lX@{}}
 \toprule
+Owner & NOAA National Weather Service, U.S.\ Tsunami Warning Centers: National Tsunami Warning Center (NTWC, Palmer, Alaska) and Pacific Tsunami Warning Center (PTWC, Honolulu, Hawaii) \\
 URL (NTWC) & \url{https://www.tsunami.gov/events/xml/PAAQAtom.xml} \\
 URL (PTWC) & \url{https://www.tsunami.gov/events/xml/PHEBAtom.xml} \\
-Format & Atom feed; each entry links to a CAP message \\
-Content & \todo{one latest message per feed; most messages are information statements} \\
-Change detection & \todo{entry id, \texttt{updated}, Last-Modified header} \\
+Access method & HTTP GET; Atom feed (XML), each entry links to a CAP 1.2 message (XML) and a text bulletin \\
+Authentication & None required \\
+Rate limits & Not documented. Team policy: identified User-Agent, polling every 5 minutes (messages are rare), retries with increasing wait, and caching of every downloaded file. \\
+License and attribution & Products of the U.S.\ National Weather Service, a U.S.\ Government agency, in the public domain; the source is credited as ``NOAA/NWS U.S.\ Tsunami Warning Centers''~\cite{tsunamigov}. \\
+Fields used & Atom: entry \texttt{id}, \texttt{title}, \texttt{updated}, \texttt{geo:lat}, \texttt{geo:long}, CAP link. CAP: \texttt{identifier}, \texttt{sent}, \texttt{msgType}, \texttt{event}, \texttt{severity}, \texttt{urgency}, \texttt{certainty}, and the parameters \texttt{EventPreliminaryMagnitude}, \texttt{EventPreliminaryMagnitudeType}, \texttt{EventOriginTime}, \texttt{EventDepth} and \texttt{EventLatLon} \\
+Coverage & NTWC: coasts of the continental U.S., Alaska and Canada. PTWC: Hawaii, the U.S.\ Pacific territories and international Pacific and Caribbean coasts. Messages are issued for earthquakes anywhere that may affect these coasts. \\
+Content & Only the latest message of each center; older messages disappear from the feed. Most messages are information statements (for example, CAP \texttt{event} = Tsunami Information, \texttt{severity} = Minor, \texttt{certainty} = Unlikely); warnings are rare. \\
+Change detection & A new message has a new entry \texttt{id} and CAP \texttt{identifier}; the entry \texttt{updated} time and the HTTP \texttt{Last-Modified} header change when a message is published. No \texttt{ETag} is sent. Because only the latest message is kept, a message issued and replaced between two polls is lost, which limits the polling interval. \\
 \bottomrule
 \end{tabularx}
 
 \subsection{Empirical Update Behavior}
 Two snapshots were taken on 7 November 2026 at 05:04 and 14:03 UTC (about 9 hours apart).
+All times in this report are given in UTC, followed by the local time in Bogot\'a (UTC$-5$, no daylight saving time); the snapshots correspond to 00:04 and 09:03 in Bogot\'a.
 
 \begin{table}[H]
 \centering
@@ -312,10 +328,59 @@ Removed & 10 & 0 \\
 \caption{Changes between the two snapshots.}
 \end{table}
 
-\todo{Explain: all 10 removed events left the rolling 30-day window (none was deleted); fields that changed in the modified events (time, place, magnitude, station counts); event ids stayed stable.}
+In the 9-hour window the USGS feed went from 714 to 726 records: 22 new, 25 modified and 10 removed, while tsunami.gov did not change at all.
+This reflects how rare messages are, not a fault of the feed: a later check of the feed headers on 9 November showed that the PTWC feed had been updated on 8 November 2026 at 06:35 UTC (01:35 Bogot\'a), after the snapshots, while the NTWC feed still carried its 5 November message (05:02 UTC, 00:02 Bogot\'a).
+All snapshot figures in this section are computed in Section 3.5 of the notebook \path{notebooks/01_source_profiling.ipynb}.
 
+\paragraph{Removed events.}
+The 10 removed events were not deleted: all of them expired from the rolling 30-day window.
+The 30-day cutoff of the second snapshot is 8 October 2026 at 14:03 UTC (09:03 Bogot\'a); the removed events have origin times between 05:06 and 11:36 UTC of that day (00:06 and 06:36 Bogot\'a), and the oldest event kept in the second snapshot is from 14:11 UTC (09:11 Bogot\'a).
+
+\paragraph{Modified events.}
+All 25 kept their \texttt{id}, and all 25 have a new \texttt{updated} value, which is how USGS signals a revision.
+Of these, 21 were relocated: the epicenter moved between 1.5 and 29~km (median 5.9~km) and the depth changed by up to 49~km; consequently the origin \texttt{time}, \texttt{place} and \texttt{title}, and the location-quality fields \texttt{nst}, \texttt{dmin} and \texttt{rms}, changed too.
+Six events also changed their magnitude by 0.1 to 0.2 units, always keeping the magnitude type \texttt{mb}.
+The remaining 4 events changed only \texttt{updated} or the \texttt{felt} count, with no change to the event itself.
+All 726 events are already \texttt{reviewed}, so a reviewed status does not mean that the record is final.
+
+\paragraph{New events.}
+The 22 new events have magnitudes between 4.5 and 5.5 (none with $M \geq 6$); 19 of them lie inside the Pacific polygon.
+Note that \path{workshop_1/compare_incremental_samples.py} compares only the \texttt{properties} of each event; the notebook also compares \texttt{geometry}, which is where the relocations appear.
 \subsection{Revised or Deleted Records and Watermark Implications}
-\todo{Watermark on \texttt{updated}, upsert on (source, id), content hash to separate real changes from timestamp-only updates, overlap window.}
+Section~3.3 shows that records change after publication, and that the changes arrive late: the 25 modified events were revised between 1 and 29 days after their origin time (median 18 days; Section 3.5.2 of the notebook).
+The incremental design therefore cannot rely on origin times or on new identifiers alone.
+The rules below are applied per source.
+
+\paragraph{USGS real-time feed.}
+\begin{itemize}[nosep]
+  \item \textbf{Watermark:} the largest \texttt{updated} value stored, not \texttt{time}. A revision moves \texttt{updated} forward but keeps the origin time, so a watermark on \texttt{time} would miss all 25 revisions of Section~3.3.
+  \item \textbf{Per-event check:} the feed cannot be asked for ``changes since'', so every poll reads the whole 30-day file. An event is processed only if its \texttt{id} is new or its \texttt{updated} is greater than the stored value for that \texttt{id}.
+  \item \textbf{Duplicate key:} (\texttt{source}, \texttt{id}). Writes are upserts, so a revision updates the existing row instead of creating a new one.
+  \item \textbf{Content hash:} a SHA-256 hash of the normalized fields (time, latitude, longitude, depth, magnitude and its type, place, status, tsunami flag). A new version is recorded only when the hash changes; in Section~3.3, 4 of the 25 modified events changed only \texttt{updated} or \texttt{felt} and would not create a new version.
+  \item \textbf{Disappearance:} an event that leaves the feed because its origin time is older than 30 days is expected (all 10 removals in Section~3.3) and its row is kept unchanged. An event that disappears while still younger than 30 days is a deletion candidate: it is confirmed with an FDSN query by event id (HTTP 409 for deleted events) and then marked as deleted, never physically removed.
+  \item \textbf{Overlap window:} revisions made after an event has left the 30-day window are not visible in the feed. A daily FDSN query with \texttt{updatedafter} set to the watermark minus one day (the overlap) catches them for the $M \geq 6$ Pacific scope.
+\end{itemize}
+
+\paragraph{USGS FDSN catalog.}
+The historical load uses the same duplicate key, so the FDSN and real-time records of one earthquake share one row.
+Later revisions of historical events reach the database through the daily \texttt{updatedafter} query described above.
+
+\paragraph{tsunami.gov.}
+\begin{itemize}[nosep]
+  \item \textbf{Revisions:} no published message was revised in the snapshots; a correction or update is issued as a new message with a new identifier.
+  \item \textbf{Watermark:} the entry \texttt{updated} time and the CAP \texttt{identifier} of the last stored message of each center (NTWC and PTWC).
+  \item \textbf{Duplicate key:} the CAP \texttt{identifier}; messages are insert-only.
+  \item \textbf{Cheap polling:} the stored \texttt{Last-Modified} value is sent back as \texttt{If-Modified-Since}, so an unchanged feed is not processed again; whether the server answers 304 must still be tested in Workshop~3.
+  \item \textbf{Limitation:} each feed keeps only its latest message, so a message that is replaced between two polls is lost. Polling every 5 minutes makes this unlikely, and the limitation is stated in the dashboard.
+\end{itemize}
+
+\paragraph{NOAA HazEL.}
+HazEL records have no update timestamp, yet they can be reclassified (for example their \texttt{eventValidity}), so no watermark is possible.
+HazEL is not an incremental source: each historical run downloads the 221 records of regions 80--89 again (two requests) and compares them by content hash; changed records are updated and unchanged ones are skipped.
+
+\paragraph{Failed runs.}
+For every source the watermark is written in the same database transaction as the records it covers, so it advances only after a successful commit.
+Because all writes are upserts by key, re-running a failed or partial run processes the same records again without creating duplicates (see Section~\ref{sec:contract}).
 
 
 
@@ -327,7 +392,7 @@ Removed & 10 & 0 \\
 \subsection{Profiling Summary}
 \todo{Rows, null percentages, ranges, duplicated identifiers, timestamp format and time zone, coordinate validity and units for each source. Reference the notebook \path{notebooks/01_source_profiling.ipynb}.}
 
-\begin{tabularx}{\textwidth}{@{}lrrX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}lrrX@{}}
 \toprule
 Source & Records & Duplicated ids & Notes \\
 \midrule
@@ -341,7 +406,7 @@ tsunami.gov & \todo{} & \todo{} & \todo{} \\
 \subsection{Data-Quality Problems}
 At least five, each with an example record.
 
-\begin{tabularx}{\textwidth}{@{}clXX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}clXX@{}}
 \toprule
 \# & Source & Problem & Example record \\
 \midrule
@@ -356,7 +421,7 @@ At least five, each with an example record.
 \subsection{Cross-Source Overlap}
 At least five candidate pairs describing the same real-world event.
 
-\begin{tabularx}{\textwidth}{@{}clllllX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}clllllX@{}}
 \toprule
 \# & Source A id & Source B id & $\Delta t$ & Distance & Magnitude & What differs \\
 \midrule
@@ -376,7 +441,7 @@ At least five candidate pairs describing the same real-world event.
 \label{sec:mapping}
 
 \subsection{Field Mapping to the Canonical \texttt{event}}
-\begin{tabularx}{\textwidth}{@{}lXXXX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}lXXXX@{}}
 \toprule
 Canonical field & NOAA HazEL & USGS FDSN / feed & tsunami.gov (CAP) & Rule \\
 \midrule
@@ -412,7 +477,7 @@ Canonical field & NOAA HazEL & USGS FDSN / feed & tsunami.gov (CAP) & Rule \\
 \section{Ingestion Contract Draft}
 \label{sec:contract}
 
-\begin{tabularx}{\textwidth}{@{}lXXXX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}lXXXX@{}}
 \toprule
 Source & Historical strategy & Incremental strategy & Duplicate key & Overlap window \\
 \midrule
@@ -440,7 +505,7 @@ tsunami.gov & -- & \todo{} & \todo{} & \todo{} \\
 \todo{Role, profile, decisions supported, and why the dashboard is useful.}
 
 \subsection{User Stories}
-\begin{tabularx}{\textwidth}{@{}clXc@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}clXc@{}}
 \toprule
 ID & Type & Story & MoSCoW \\
 \midrule
@@ -457,7 +522,7 @@ US6 & Trust & \todo{} & \todo{} \\
 \todo{Name, inputs (magnitude, depth, location, historical tsunami association, official alert), rule, output scale, how it will be validated against historical events. State clearly that it is a monitoring aid and not a prediction, and list its limitations.}
 
 \subsection{Risks and Mitigation}
-\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\noindent\begin{tabularx}{\textwidth}{@{}lXX@{}}
 \toprule
 Risk & Impact & Mitigation \\
 \midrule
@@ -493,8 +558,8 @@ Ambiguous identifiers & \todo{} & \todo{} \\
 \bibitem{hazel} National Geophysical Data Center / World Data Service. \emph{NCEI/WDS Global Historical Tsunami Database}. NOAA National Centers for Environmental Information. doi:10.7289/V5PN93H7. Accessed through the HazEL API, \url{https://www.ngdc.noaa.gov/hazel/view/swagger}, 8 November 2026.
 \bibitem{usgsfdsn} U.S.\ Geological Survey. \emph{API Documentation -- Earthquake Catalog}. \url{https://earthquake.usgs.gov/fdsnws/event/1/}. Accessed 8 November 2026.
 \bibitem{usgscredit} U.S.\ Geological Survey. \emph{Acknowledging or Crediting USGS}. \url{https://www.usgs.gov/information-policies-and-instructions/acknowledging-or-crediting-usgs}. Accessed 8 November 2026.
-\bibitem{usgsfeed} U.S.\ Geological Survey. \emph{Real-time Notifications, Feeds, and Web Services (GeoJSON summary feed)}. \url{https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php}. Accessed 7 November 2026.
-\bibitem{tsunamigov} NOAA National Weather Service, Tsunami Warning Centers. \emph{Tsunami event feeds}. \url{https://www.tsunami.gov/}. Accessed 7 November 2026.
+\bibitem{usgsfeed} U.S.\ Geological Survey. \emph{Real-time Notifications, Feeds, and Web Services (GeoJSON summary feed)}. \url{https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php}. Accessed 7 and 9 November 2026.
+\bibitem{tsunamigov} NOAA National Weather Service, Tsunami Warning Centers. \emph{Tsunami event feeds}. \url{https://www.tsunami.gov/}. Accessed 7 and 9 November 2026.
 \end{thebibliography}
 
 
