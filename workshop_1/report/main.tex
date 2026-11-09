@@ -390,48 +390,82 @@ Because all writes are upserts by key, re-running a failed or partial run proces
 \label{sec:profiling}
 
 \subsection{Profiling Summary}
-\todo{Rows, null percentages, ranges, duplicated identifiers, timestamp format and time zone, coordinate validity and units for each source. Reference the notebook \path{notebooks/01_source_profiling.ipynb}.}
+Every sample was profiled in \path{notebooks/01_source_profiling.ipynb} (Sections 3 to 6): null percentage, type and range of every field, duplicated identifiers, timestamp formats and time zones, coordinate validity and units.
+Table~\ref{tab:profile} summarizes the result.
+No source has duplicated identifiers inside a snapshot, and no coordinate is outside the WGS84 ranges or at $(0, 0)$; the only invalid locations are 9 HazEL events without coordinates.
+All timestamps are in UTC, but in four different formats: HazEL splits the date into six columns (\texttt{year} to \texttt{second}, with fractional seconds and with \texttt{hour} and \texttt{minute} sometimes missing), the FDSN CSV uses ISO~8601 with \texttt{Z}, the real-time feed uses epoch milliseconds, and tsunami.gov uses ISO~8601 (with \texttt{Z} in the Atom feed and the offset \texttt{-00:00} in CAP).
+Depth is given in kilometers by USGS, as an integer without unit by HazEL, and as text with its unit (\texttt{473 kilometers}) by the CAP messages.
+Magnitude comes with its type in USGS (6 types in each sample: \texttt{mww}, \texttt{mwc}, \texttt{mb}, \texttt{mwb}, \texttt{mw}, \texttt{ms} in the catalog; \texttt{mb} for 609 of 726 feed events), without type in HazEL, and as a preliminary value with its type (\texttt{Ml}, \texttt{Mwp}) in tsunami.gov.
 
-\noindent\begin{tabularx}{\textwidth}{@{}lrrX@{}}
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}lrr>{\raggedright\arraybackslash}X@{}}
 \toprule
-Source & Records & Duplicated ids & Notes \\
+Source & Records & Dupl.\ ids & Notes \\
 \midrule
-NOAA HazEL & \todo{} & \todo{} & \todo{} \\
-USGS FDSN & \todo{} & \todo{} & \todo{} \\
-USGS real-time & \todo{} & \todo{} & \todo{} \\
-tsunami.gov & \todo{} & \todo{} & \todo{} \\
+NOAA HazEL & 221 & 0 & 56 columns; 2010-01-02 to 2025-12-12. Impact fields (deaths, damage, houses) are 63--99.5\% null; \texttt{warningStatusId} 76.5\% null; \texttt{eqMagnitude} and \texttt{eqDepth} 15.8\% null (tsunamis without an earthquake cause); 9 events without coordinates. \\
+USGS FDSN & 343 & 0 & 24 columns; 2010--2011, $M$ 6.0--9.1, depth 2.8--644.6~km. \texttt{magError} 100\% null; \texttt{dmin} and \texttt{horizontalError} 99.4\% null; \texttt{depthError} 80.8\% null. All events \texttt{reviewed}. \\
+USGS real-time & 726 & 0 & 32 columns; 8 October to 7 November 2026, $M$ 4.5--7.7, depth 1--643~km. \texttt{tz} 100\% null; \texttt{alert} 89.8\% null; \texttt{felt}, \texttt{cdi} 82.4\% null. All events \texttt{reviewed}; 6 with \texttt{tsunami} = 1. \\
+tsunami.gov & 2 & 0 & One message per center (NTWC and PTWC), which is the full content of each feed, so the 200-record minimum cannot apply. Both are information statements (\texttt{Minor} / \texttt{Unlikely}). \\
 \bottomrule
 \end{tabularx}
+\caption{Profiling summary of the four samples (second snapshot for the incremental sources).}
+\label{tab:profile}
+\end{table}
 
 \subsection{Data-Quality Problems}
-At least five, each with an example record.
+Seven problems were found in the samples; each one is computed in Section 5 of the notebook, except problem 6, which is shown in Section 6.1.1 of the notebook while matching records (Section~\ref{sec:overlap}).
 
-\noindent\begin{tabularx}{\textwidth}{@{}clXX@{}}
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}c>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
 \toprule
 \# & Source & Problem & Example record \\
 \midrule
-1 & NOAA HazEL & Official warning status missing & \todo{} \\
-2 & NOAA HazEL & Erroneous or doubtful events & \todo{} \\
-3 & NOAA HazEL & Time of day or coordinates missing & \todo{} \\
-4 & USGS FDSN & Columns that are always empty & \todo{} \\
-5 & tsunami.gov & Location as free text; depth units differ & \todo{} \\
+1 & NOAA HazEL & Official warning status missing: 169 of 221 events (76\%) have no \texttt{warningStatusId}. & Event 4522 (Solomon Islands, 3 January 2010): definite tsunami (validity 4) with no warning status. \\
+2 & NOAA HazEL & Erroneous or doubtful events: 9 events with \texttt{eventValidity} $\leq 2$ (8 questionable, 1 erroneous entry). & Event 5407 (South Island, New Zealand, 21 February 2011): questionable tsunami (validity 2). \\
+3 & NOAA HazEL & Time of day or coordinates missing: 23 events have only a date, and 9 events have no coordinates. & Event 4762 (Lake 513, Hualcan glacier, Peru, 13 April 2010): no hour or minute. Event 5739 (Cheju Strait, 2 January 2010): no latitude or longitude. \\
+4 & USGS FDSN & Columns that are always or almost always empty: \texttt{magError} is 100\% null, \texttt{dmin} and \texttt{horizontalError} 99.4\%. & Event \texttt{official2011\allowbreak 0311054624120\_30} (Tohoku, 11 March 2011): empty \texttt{magError}, \texttt{horizontalError} and \texttt{dmin}. \\
+5 & tsunami.gov & Location as free text and depth as text with its unit; the location text uses miles. & NTWC message \texttt{PAAQ-1-to0j1g}: ``75 miles SW of Eureka, California''; CAP \texttt{EventDepth} = ``13 kilometers''. \\
+6 & tsunami.gov & Wrong origin date in the CAP message: the origin time is one day earlier than the real earthquake and than the message itself. & PTWC message \texttt{PHEB-1-26297050}, sent 25 October 2026 at 02:27 UTC, gives \texttt{EventOriginTime} 24 October 02:09 UTC; USGS \texttt{us6000u4r9} places the earthquake on 25 October at 02:09:24 UTC. \\
+7 & USGS real-time & The \texttt{tsunami} flag can be misread: it means that a bulletin may exist, not that a tsunami happened (6 of 726 events). & Event \texttt{us6000u4r9} (Bonin Islands, $M$ 6.5, depth 492~km): \texttt{tsunami} = 1, while the PTWC message for it says \texttt{Minor} / \texttt{Unlikely}. \\
 \bottomrule
 \end{tabularx}
+\caption{Data-quality problems found in the samples.}
+\label{tab:quality}
+\end{table}
+
+In addition, 36 of the 221 HazEL events have a non-earthquake cause (Section~\ref{sec:hazard}), so their magnitude and depth are empty by nature and must not be treated as missing values.
 
 \subsection{Cross-Source Overlap}
-At least five candidate pairs describing the same real-world event.
+\label{sec:overlap}
+For this exploration two records are taken as the same event when their origin times differ by at most 15 minutes and their epicenters are at most 100~km apart (Section 6 of the notebook); the final rule will be justified in Workshop~3.
+With this rule, all 28 earthquake-caused HazEL tsunamis of 2010--2011 were matched to a USGS FDSN event, with a median time difference of 0~s, a median distance of 0~km and a median magnitude difference of 0; the HazEL depth is within 2~km of the USGS depth in 25 of the 28 pairs.
+Between the two incremental sources the rule matched only the NTWC message; the PTWC message was matched only after widening the time window to two days (Section 6.1.1 of the notebook), which revealed the date error of problem 6: the matching USGS event is 24.01 hours later than the CAP origin time.
+Table~\ref{tab:pairs} lists six pairs ($\Delta t$ is the time of record B minus the time of record A).
 
-\noindent\begin{tabularx}{\textwidth}{@{}clllllX@{}}
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}c>{\raggedright\arraybackslash}p{4.1cm}rr>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}X@{}}
 \toprule
-\# & Source A id & Source B id & $\Delta t$ & Distance & Magnitude & What differs \\
+\# & Record A / Record B & $\Delta t$ & Distance & Magnitude A / B & What differs \\
 \midrule
-1 & PAAQ-1-to0j1g & nc75462637 & $-1.3$ s & 8.7 km & 4.5 Ml / 4.96 mw & magnitude type, depth, location text \\
-2 & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} \\
-3 & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} \\
-4 & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} \\
-5 & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} & \todo{} \\
+1 & tsunami.gov \texttt{PAAQ-1-to0j1g} / USGS feed \texttt{nc75462637} & $-1.3$~s & 8.7~km & 4.5 Ml / 4.96 mw & Magnitude value and type, depth (13 vs 10~km), location text \\
+2 & HazEL 5413 / USGS \texttt{official2011\allowbreak 0311054624120\_30} & $+0.02$~s & 0.0~km & 9.1 / 9.1 mww & Identifier format; HazEL time rounded to 0.1~s and magnitude without type \\
+3 & HazEL 4682 / USGS \texttt{official2010\allowbreak 0227063411530\_30} & $+0.03$~s & 0.0~km & 8.8 / 8.8 mww & Depth 22 vs 22.9~km (HazEL integer) \\
+4 & HazEL 5406 / USGS \texttt{usp000huc2} & $+0.21$~s & 15.9~km & 6.8 / 6.9 mww & Epicenter, depth (28 vs 26~km) and magnitude \\
+5 & HazEL 5931 / USGS \texttt{usp000hvkh} & $+0.68$~s & 0.0~km & 6.3 / 6.5 mwc & Magnitude (0.2 lower in HazEL); HazEL time without decimals \\
+6 & tsunami.gov \texttt{PHEB-1-26297050} / USGS feed \texttt{us6000u4r9} & $+1$~day $+24$~s & 35.8~km & 7.0 Mwp / 6.5 mww & Origin date (problem 6), preliminary magnitude 0.5 higher, depth (473 vs 492~km) \\
 \bottomrule
 \end{tabularx}
+\caption{Candidate pairs of records that describe the same real-world event.}
+\label{tab:pairs}
+\end{table}
+
+Two lessons follow for the matching rule: magnitude must not be required to be equal (differences of 0.1 to 0.5 and different magnitude types are normal), and tsunami.gov times cannot be trusted alone, so a message should also be linked through its location and magnitude when no USGS event lies within the time window.
 
 
 
