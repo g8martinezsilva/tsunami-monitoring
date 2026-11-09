@@ -114,7 +114,7 @@ The system supports monitoring and correlation and does \textbf{not} predict tsu
 
 \subsection{Geographic and Temporal Scope}
 The project covers the Pacific basin, including Alaska and Hawaii, during 2010--2025, with earthquakes of magnitude $M \geq 6$.
-NOAA HazEL regions 80--89 and a USGS rectangle (latitude $-60$ to $65$, longitude $100$ to $300$) provide geographic filters; the USGS historical sample covers 2010--2011 to meet the workshop's 200-record requirement.
+NOAA HazEL regions 80--89 and a USGS rectangle (latitude $-60$ to $65$, longitude $100$ to $300$) provide geographic filters, and a Pacific polygon removes the non-Pacific parts of the rectangle (Section~\ref{sec:historical}); the USGS historical sample covers 2010--2011 to meet the workshop's 200-record requirement.
 The two real-time feeds are profiled in full, with Pacific events identified by coordinates; tsunami.gov covers the Pacific, Alaska, the US and the Caribbean.
 
 \begin{tabularx}{\textwidth}{@{}lXX@{}}
@@ -229,7 +229,41 @@ Year & Events & Year & Events \\
 Although these 1,930 events fit under the limit of 20,000 per request, we load one calendar year per request (16 requests).
 The documentation also defines time $\times$ area limits that are not enforced today but could be: a single 2010--2025 query over our rectangle amounts to about 146 million square-degree-days (5,844 days $\times$ 25,000 square degrees), above the 100 million cap of the \texttt{count} method, while each yearly partition amounts to about 9.15 million.
 Partitioning also allows retrying a single failed year without repeating the others and makes the load resumable.
-Each response is stored unchanged in the raw landing zone as \path{usgs_YYYYMMDD_HHMMSS.csv}, and the Pacific polygon filter is applied afterwards, during the load into the database.
+Each response is stored unchanged in the raw landing zone as \path{usgs_YYYYMMDD_HHMMSS.csv}.
+The rectangle is only a coarse query filter: it also contains areas outside the Pacific basin, such as the Caribbean and the Gulf of Mexico (longitudes $270$ to $300$) and parts of the Indian Ocean (south of Sumatra and Java, and off western Australia).
+Therefore a Pacific polygon filter is applied afterwards, during the load into the database, and the events it removes are counted in the \texttt{ingestion\_run} record.
+The polygon is stored as GeoJSON in \path{config/pacific_polygon.geojson} and has the 25 vertices of Table~\ref{tab:polygon}.
+It follows the Pacific margins slightly inland (Alaska and British Columbia, the Americas, Australia and East Asia), extends south to latitude $-60$, and passes along the southern coasts of Java, Bali and Timor, so that the inner Indonesian seas (Java, Flores and Banda) are included while the Sunda trench on the Indian Ocean side is excluded, consistently with HazEL regions 80--89.
+Because the polygon crosses the antimeridian, its longitudes are stored as a continuous sequence from $-255.5$ to $-66$; before the point-in-polygon test, every event longitude $\lambda > 0$ is converted to $\lambda - 360$.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{rrr@{\qquad}rrr}
+\toprule
+\# & Latitude & Longitude & \# & Latitude & Longitude \\
+\midrule
+1 & 66.1$^\circ$N & 168.5$^\circ$W & 14 & 44.5$^\circ$S & 144$^\circ$E \\
+2 & 63.5$^\circ$N & 150$^\circ$W & 15 & 38$^\circ$S & 142$^\circ$E \\
+3 & 61.5$^\circ$N & 140$^\circ$W & 16 & 25$^\circ$S & 135$^\circ$E \\
+4 & 59.5$^\circ$N & 133$^\circ$W & 17 & 12$^\circ$S & 132$^\circ$E \\
+5 & 56$^\circ$N & 129$^\circ$W & 18 & 9.2$^\circ$S & 124$^\circ$E \\
+6 & 50$^\circ$N & 124$^\circ$W & 19 & 8.95$^\circ$S & 115$^\circ$E \\
+7 & 47$^\circ$N & 121$^\circ$W & 20 & 7.5$^\circ$S & 110$^\circ$E \\
+8 & 7.8$^\circ$N & 77.5$^\circ$W & 21 & 6$^\circ$S & 110$^\circ$E \\
+9 & 19.3$^\circ$S & 67.4$^\circ$W & 22 & 1.5$^\circ$N & 104.5$^\circ$E \\
+10 & 53.6$^\circ$S & 71$^\circ$W & 23 & 17.1$^\circ$N & 108$^\circ$E \\
+11 & 56$^\circ$S & 66$^\circ$W & 24 & 50$^\circ$N & 138.4$^\circ$E \\
+12 & 60$^\circ$S & 66$^\circ$W & 25 & 63$^\circ$N & 154.5$^\circ$E \\
+13 & 60$^\circ$S & 144$^\circ$E & & & \\
+\bottomrule
+\end{tabular}
+\caption{Vertices of the Pacific polygon, in order; the polygon closes from vertex 25 back to vertex 1.}
+\label{tab:polygon}
+\end{table}
+
+Applied to the samples, the polygon removes 18 of the 343 USGS events (the 2010 Haiti earthquakes in the Caribbean, eight events on the Indian Ocean side of Sumatra, Java and Bali, one event in the Drake Passage, and seven inland earthquakes in South America and northeast Asia, five of them deeper than 500~km) and 7 of the 221 HazEL events.
+The seven HazEL events are landslide-generated waves in rivers, lakes and reservoirs far from the coast (in China, eastern Russia, the Yukon, British Columbia and Washington); they are outside the scope of a coastal tsunami monitor and are excluded on purpose.
 
 
 % ===== 03_incremental.tex =====
@@ -456,10 +490,11 @@ Ambiguous identifiers & \todo{} & \todo{} \\
 % ===== 09_references.tex =====
 % Owner: TBD
 \begin{thebibliography}{9}
-\bibitem{hazel} NOAA National Centers for Environmental Information. \emph{Hazard Event Database (HazEL), Global Historical Tsunami Database}. \url{https://www.ngdc.noaa.gov/hazel/view/swagger}. Accessed \todo{date}.
-\bibitem{usgsfdsn} U.S.\ Geological Survey. \emph{API Documentation -- Earthquake Catalog}. \url{https://earthquake.usgs.gov/fdsnws/event/1/}. Accessed \todo{date}.
-\bibitem{usgsfeed} U.S.\ Geological Survey. \emph{Real-time Notifications, Feeds, and Web Services (GeoJSON summary feed)}. \url{https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php}. Accessed \todo{date}.
-\bibitem{tsunamigov} NOAA National Weather Service, Tsunami Warning Centers. \emph{Tsunami event feeds}. \url{https://www.tsunami.gov/}. Accessed \todo{date}.
+\bibitem{hazel} National Geophysical Data Center / World Data Service. \emph{NCEI/WDS Global Historical Tsunami Database}. NOAA National Centers for Environmental Information. doi:10.7289/V5PN93H7. Accessed through the HazEL API, \url{https://www.ngdc.noaa.gov/hazel/view/swagger}, 8 November 2026.
+\bibitem{usgsfdsn} U.S.\ Geological Survey. \emph{API Documentation -- Earthquake Catalog}. \url{https://earthquake.usgs.gov/fdsnws/event/1/}. Accessed 8 November 2026.
+\bibitem{usgscredit} U.S.\ Geological Survey. \emph{Acknowledging or Crediting USGS}. \url{https://www.usgs.gov/information-policies-and-instructions/acknowledging-or-crediting-usgs}. Accessed 8 November 2026.
+\bibitem{usgsfeed} U.S.\ Geological Survey. \emph{Real-time Notifications, Feeds, and Web Services (GeoJSON summary feed)}. \url{https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php}. Accessed 7 November 2026.
+\bibitem{tsunamigov} NOAA National Weather Service, Tsunami Warning Centers. \emph{Tsunami event feeds}. \url{https://www.tsunami.gov/}. Accessed 7 November 2026.
 \end{thebibliography}
 
 
@@ -470,10 +505,60 @@ Ambiguous identifiers & \todo{} & \todo{} \\
 % Owner: TBD
 \section{Real Response Snippets}
 \label{app:snippets}
-\todo{Short excerpts of the unmodified responses, one per source, with the file name in \path{workshop_1/samples/}.}
+Short excerpts of the unmodified responses stored in \path{workshop_1/samples/}.
+Each excerpt shows one record; ``\ldots'' marks fields or lines left out for brevity.
 
+\subsection{NOAA HazEL -- tsunami events}
+File \path{noaa_tsunamis_pacific_2010_2025.json}, record of the 2011 Tohoku tsunami, and the pagination fields of the response:
 \begin{lstlisting}
-(paste a short excerpt here)
+{"items": [ ...
+  {"id": 5413, "year": 2011, "month": 3, "day": 11, "hour": 5, "minute": 46,
+   "latitude": 38.297, "longitude": 142.373, "causeCode": 1,
+   "eventValidity": 4, "eqMagnitude": 9.1, "eqDepth": 29,
+   "maxWaterHeight": 39.26, "warningStatusId": null, "regionCode": 85,
+   "numRunups": 6429, "country": "JAPAN", "locationName": "HONSHU ISLAND", ...},
+  ... ],
+ "page": 1, "totalPages": 2, "itemsPerPage": 200, "totalItems": 221}
+\end{lstlisting}
+
+\subsection{USGS FDSN -- earthquake catalog}
+File \path{usgs_earthquakes_2010_2011_m6_pacific.csv}, header and the row of the same earthquake:
+\begin{lstlisting}
+time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
+2011-03-11T05:46:24.120Z,38.297,142.373,29,9.1,mww,541,9.5,,1.16,official,official20110311054624120_30,2026-10-16T10:38:09.160Z,"2011 Great Tohoku Earthquake, Japan",earthquake,,,,,reviewed,us,official
+\end{lstlisting}
+The two records describe the same event: same origin minute, epicenter and magnitude, and the HazEL \texttt{eqDepth} (29) equals the USGS depth in km.
+
+\subsection{USGS real-time feed}
+File \path{usgs_realtime_20261107_050434.geojson}, feed metadata and first feature (times in epoch milliseconds, coordinates as longitude, latitude, depth in km):
+\begin{lstlisting}
+{"type": "FeatureCollection",
+ "metadata": {"generated": 1794027872000,
+   "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson",
+   "title": "USGS Magnitude 4.5+ Earthquakes, Past Month", "status": 200, "count": 714, ...},
+ "features": [
+  {"type": "Feature", "id": "us7000twmr",
+   "properties": {"mag": 4.8, "place": "36 km WNW of Poso, Indonesia",
+     "time": 1793992021269, "updated": 1794002237040, "tsunami": 0,
+     "magType": "mb", "status": "reviewed", "type": "earthquake", ...},
+   "geometry": {"type": "Point", "coordinates": [120.4589, -1.2393, 10]}},
+  ... ]}
+\end{lstlisting}
+
+\subsection{tsunami.gov -- PTWC Atom feed}
+File \path{ptwc_20261107_050434.xml}, the single entry of the feed (an information statement); the linked CAP message is stored in \path{ptwc_cap1_20261107_050434.xml}:
+\begin{lstlisting}
+<entry>
+  <title>BONIN ISLANDS  JAPAN REGION</title><updated>2026-10-25T02:27:01Z</updated>
+  <geo:lat>28.</geo:lat>
+  <geo:long>139.9</geo:long>
+  <summary type="xhtml"> ... <strong>Category:</strong> Information<br/>
+    <strong>Bulletin Issue Time: </strong> 2026.10.25 02:27:01 UTC <br/>
+    <strong>Preliminary Magnitude: </strong>7.0(Mwp)<br/> ... </summary>
+  <id>urn:uuid:ba64bc82-07f7-45fb-ab6c-25420fca6851</id>
+  <link rel="related" title="CapXML document" type="application/cap+xml"
+        href="https://www.tsunami.gov/events/PHEB/2026/10/24/26297050/1/WEGM42/PHEBCAP.xml" />
+</entry>
 \end{lstlisting}
 
 
