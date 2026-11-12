@@ -1,327 +1,81 @@
-import argparse
-import csv
-import io
 import json
-import time
+import sys
+from collections import Counter
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+
+import requests
+
+BASE = "https://www.ngdc.noaa.gov/hazel/hazard-service/api/v1"       # NOAA API base URL
+HEADERS = {"User-Agent": "UDistrital-Team8-Tsunami-Monitoring/1.0"}  # Identify the team in requests
+SAMPLES = Path("workshop_1/samples")
+SAMPLES.mkdir(parents=True, exist_ok=True)
+FORCE = "--force" in sys.argv
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-WORKSHOP_DIR = PROJECT_ROOT / "workshop_1"
-OUTPUT_DIR = WORKSHOP_DIR / "samples"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+def get_raw(filename, url, **params):
+    """Request data and save the original response bytes in samples/.
+    If the file already exists, read it from disk instead of downloading it again."""
+    path = SAMPLES / filename
+    if FORCE or not path.exists():
+        r = requests.get(url, params=params, headers=HEADERS, timeout=30)
+        r.raise_for_status()         # Stop if the response status is not successful (4xx/5xx)
+        path.write_bytes(r.content)  # Save the original response without changing it
+    return path.read_bytes()
 
-NOAA_EVENTS_URL = (
-    "https://www.ngdc.noaa.gov/hazel/hazard-service/api/v1/tsunamis/events"
-)
-NOAA_RUNUPS_URL = (
-    "https://www.ngdc.noaa.gov/hazel/hazard-service/api/v1/tsunamis/runups"
-)
 
-HAZEL_BASE_URL = "https://www.ngdc.noaa.gov/hazel/hazard-service/api/v1"
-NOAA_DESCRIPTOR_URLS = {
-    "causes": f"{HAZEL_BASE_URL}/descriptors/tsunami/causes",
-    "validity": f"{HAZEL_BASE_URL}/descriptors/tsunami/validity",
-    "warning_statuses": f"{HAZEL_BASE_URL}/descriptors/tsunami/warning-statuses",
-    "regions": f"{HAZEL_BASE_URL}/descriptors/tsunami/regions",
+def get_json(filename, url, **params):
+    return json.loads(get_raw(filename, url, **params))
+
+
+EVENTS_URL = f"{BASE}/tsunamis/events"
+PACIFIC = "80,81,82,83,84,85,86,87,88,89"  # NOAA regionCode values for the Pacific
+params = dict(minYear=2010, maxYear=2025, itemsPerPage=200, regionCode=PACIFIC)
+
+page1 = get_json("noaa_tsunamis_pacific_2010_2025.json", EVENTS_URL, page=1, **params)
+events = list(page1["items"])                  # Start with the events from the first page
+for p in range(2, page1["totalPages"] + 1):    # Download any remaining pages
+    events += get_json(f"noaa_tsunamis_pacific_page{p}.json", EVENTS_URL, page=p, **params)["items"]
+
+# Validations:
+assert len(events) == page1["totalItems"], "faltan o sobran eventos"       # Check that all events were downloaded
+assert len({e["id"] for e in events}) == len(events), "hay ids repetidos"  # Check for repeated event IDs
+print(len(events), "eventos")
+
+# Extra 2011 sample for the report
+get_json("noaa_tsunamis_pacific_2011.json", EVENTS_URL,
+         minYear=2011, maxYear=2011, itemsPerPage=200, regionCode=PACIFIC)
+
+RUNUPS_URL = f"{BASE}/tsunamis/runups"
+EVENT_ID = 4682
+by_id = {e["id"]: e for e in events}  # Look up an event by its ID
+
+runups = get_json(f"noaa_runups_event_{EVENT_ID}_page1.json", RUNUPS_URL,
+                  tsunamiEventId=EVENT_ID, itemsPerPage=200, page=1)
+
+# Compare the event summary with the runups endpoint
+print("según el evento:", by_id[EVENT_ID]["numRunups"],
+      "| según el endpoint runups:", runups["totalItems"],
+      "| guardados en esta página:", len(runups["items"]))
+
+DESCRIPTORS = {  # Descriptor name: corresponding event field
+    "causes": "causeCode",
+    "validity": "eventValidity",
+    "warning_statuses": "warningStatusId",
+    "regions": "regionCode",
 }
+for name, field in DESCRIPTORS.items():
+    url = f"{BASE}/descriptors/tsunami/{name.replace('_', '-')}"  # Use hyphens in the endpoint URL
+    items = get_json(f"noaa_descriptor_{name}.json", url)["items"]
+    labels = {int(i["id"]): i["description"] for i in items}  # Descriptor IDs are strings; event codes are integers
 
-USGS_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query"
+    print(f"\n{field}:")
+    for code, n in Counter(e.get(field) for e in events).most_common():
+        print(f"  {code}: {labels.get(code, '(missing)' if code is None else 'UNKNOWN CODE')} -> {n}")
 
-USGS_COUNT_URL = "https://earthquake.usgs.gov/fdsnws/event/1/count"
+USGS = "https://earthquake.usgs.gov/fdsnws/event/1"
+usgs_params = dict(starttime="2010-01-01", endtime="2012-01-01", minmagnitude=6,
+                   minlatitude=-60, maxlatitude=65,
+                   minlongitude=100, maxlongitude=300)  # Longitude over 180 crosses the date line
 
-HEADERS = {"User-Agent": "UDistrital-Team8-Tsunami-Monitoring/1.0"}
-
-NOAA_START_YEAR = 2010
-NOAA_END_YEAR = 2025
-PAGE_SIZE = 200
-PACIFIC_REGION_CODES = "80,81,82,83,84,85,86,87,88,89"  # NOAA HazEL regions
-PACIFIC_BOX = {"minlatitude": -60, "maxlatitude": 65,
-               "minlongitude": 100, "maxlongitude": 300}
-
-def fetch_data(url, params, retries=3):
-    """Make an HTTP GET request, retrying temporary request failures."""
-    full_url = f"{url}?{urlencode(params)}" if params else url
-
-    for attempt in range(1, retries + 1):
-        try:
-            request = Request(full_url, headers=HEADERS)
-            with urlopen(request, timeout=30) as response:
-                return response.read()
-        except (HTTPError, URLError, TimeoutError) as error:
-            print(f"Attempt {attempt}/{retries} failed: {error}")
-            if attempt == retries:
-                raise
-            time.sleep(attempt * 2)
-
-def get_or_download(filename, url, params, force=False):
-    """Return original response bytes from a cached file or the API."""
-    output_path = OUTPUT_DIR / filename
-    if output_path.exists() and not force:
-        print(f"Using existing file: {filename}")
-        return output_path.read_bytes()
-
-    print(f"Downloading: {filename}")
-    content = fetch_data(url, params)
-    output_path.write_bytes(content)
-    print(f"Saved: {filename} ({len(content)} bytes)")
-    return content
-
-def download_noaa_events(force=False):
-    """Read all pages of Pacific NOAA tsunami events for 2010-2025."""
-    print("\nNOAA HISTORICAL TSUNAMI EVENTS")
-    base_params = {
-        "minYear": NOAA_START_YEAR,
-        "maxYear": NOAA_END_YEAR,
-        "itemsPerPage": PAGE_SIZE,
-        "regionCode": PACIFIC_REGION_CODES,
-    }
-    first_content = get_or_download(
-        "noaa_tsunamis_pacific_2010_2025.json",
-        NOAA_EVENTS_URL,
-        {**base_params, "page": 1},
-        force,
-    )
-    first_page = json.loads(first_content)
-    total_pages = first_page["totalPages"]
-    total_items = first_page["totalItems"]
-    if not isinstance(total_pages, int) or total_pages < 1:
-        raise ValueError("Invalid NOAA events page count")
-
-    events = []
-    for page in range(1, total_pages + 1):
-        if page == 1:
-            data = first_page
-        else:
-            content = get_or_download(
-                f"noaa_tsunamis_pacific_page{page}.json",
-                NOAA_EVENTS_URL,
-                {**base_params, "page": page},
-                force,
-            )
-            data = json.loads(content)
-
-        if data.get("page") != page:
-            raise ValueError(f"Unexpected NOAA events page: {data.get('page')}")
-        page_events = data["items"]
-        events.extend(page_events)
-        print(f"Page {page}: {len(page_events)} records")
-
-    ids = [event["id"] for event in events]
-    if len(events) != total_items:
-        raise ValueError("NOAA events record count mismatch")
-    if len(ids) != len(set(ids)):
-        raise ValueError("Duplicate NOAA event IDs detected")
-    if any(not (NOAA_START_YEAR <= event["year"] <= NOAA_END_YEAR) for event in events):
-        raise ValueError("NOAA returned an event outside the requested year range")
-
-    print(f"NOAA events: {len(events)} unique records")
-
-    # Keep a small, year-specific response as additional evidence.
-    sample_2011 = json.loads(
-        get_or_download(
-            "noaa_tsunamis_pacific_2011.json",
-            NOAA_EVENTS_URL,
-            {"minYear": 2011, "maxYear": 2011, "itemsPerPage": PAGE_SIZE,
-             "regionCode": PACIFIC_REGION_CODES},
-            force,
-        )
-    )
-    print(f"NOAA Pacific 2011 sample: {len(sample_2011['items'])} records")
-    return events
-
-def download_noaa_runup_sample(events, event_id=4682, force=False):
-    """Retrieve ONE PAGE of runups for one known event; not the full archive."""
-    print("\nNOAA RUNUP SAMPLE")
-    selected_event = next((event for event in events if event["id"] == event_id), None)
-    if selected_event is None:
-        raise ValueError(f"NOAA tsunami event {event_id} is not in the event sample")
-    if (selected_event.get("numRunups") or 0) == 0:
-        raise ValueError(f"NOAA tsunami event {event_id} has no reported runups")
-
-    filename = f"noaa_runups_event_{event_id}_page1.json"
-    params = {"tsunamiEventId": event_id, "itemsPerPage": PAGE_SIZE, "page": 1}
-    data = json.loads(get_or_download(filename, NOAA_RUNUPS_URL, params, force))
-    items = data.get("items", [])
-    if not items:
-        raise ValueError(f"No runup observations returned for event {event_id}")
-    if any(item.get("tsunamiEventId") != event_id for item in items):
-        raise ValueError("NOAA runup filter returned observations for other events")
-    ids = [item["id"] for item in items]
-    if len(ids) != len(set(ids)):
-        raise ValueError("Duplicate runup IDs found in sample")
-
-    total = data.get("totalItems")
-    print(f"Tsunami event: {event_id}")
-    print(f"Runups reported by event: {selected_event.get('numRunups')}")
-    print(f"Runups reported by query: {total}")
-    print(f"Runups saved (first page): {len(items)}")
-    return {"event_id": event_id, "count": len(items), "total": total, "filename": filename}
-
-def download_noaa_descriptors(events, force=False):
-    """Download NOAA code tables and print how many events use each code."""
-    print("NOAA DESCRIPTORS")
-    fields = {
-        "causes": "causeCode",
-        "validity": "eventValidity",
-        "warning_statuses": "warningStatusId",
-        "regions": "regionCode",
-    }
-    descriptors = {}
-    for name, url in NOAA_DESCRIPTOR_URLS.items():
-        content = get_or_download(f"noaa_descriptor_{name}.json", url, None, force)
-        items = json.loads(content).get("items", [])
-        if not items:
-            raise ValueError(f"NOAA descriptor '{name}' is empty")
-        # The API returns ids as strings ("1"); events use integers (1)
-        table = {int(item["id"]): item["description"] for item in items}
-        descriptors[name] = table
-
-        counts = {}
-        for event in events:
-            code = event.get(fields[name])
-            counts[code] = counts.get(code, 0) + 1
-
-        print(f"{fields[name]} ({len(table)} codes):")
-        for code, count in sorted(counts.items(), key=lambda item: -item[1]):
-            label = "(missing)" if code is None else table.get(code, "UNKNOWN CODE")
-            print(f"  {code}: {label} -> {count}")
-    return descriptors
-
-def download_usgs(force=False):
-    """Download Pacific USGS earthquakes of magnitude >= 6 in 2010-2011."""
-
-    print("\nUSGS HISTORICAL EARTHQUAKES")
-
-    params = {
-        "format": "csv",
-        "starttime": "2010-01-01",
-        "endtime": "2012-01-01",
-        "minmagnitude": 6,
-        **PACIFIC_BOX,
-    }
-
-    filename = "usgs_earthquakes_2010_2011_m6_pacific.csv"
-
-    content = get_or_download(
-        filename,
-        USGS_URL,
-        params,
-        force
-    )
-
-    reader = csv.DictReader(
-        io.StringIO(content.decode("utf-8-sig"))
-    )
-
-    records = list(reader)
-
-    if not records:
-        raise ValueError("USGS returned no earthquake records")
-
-    required = {
-        "id",
-        "time",
-        "latitude",
-        "longitude",
-        "depth",
-        "mag"
-    }
-
-    if not required.issubset(reader.fieldnames or []):
-        raise ValueError("Missing required columns in USGS CSV")
-
-    ids = [record["id"] for record in records]
-
-    if len(ids) != len(set(ids)):
-        raise ValueError("Duplicate USGS earthquake IDs detected")
-
-    # Compare against the count method (same filters, no format parameter)
-    count_params = {k: v for k, v in params.items() if k != "format"}
-    expected = int(fetch_data(USGS_COUNT_URL, count_params).decode().strip())
-    if len(records) != expected:
-        raise ValueError(
-            f"USGS count mismatch: expected {expected}, downloaded {len(records)}"
-        )
-    print(f"Count check passed: {expected}")
-
-    # Validate magnitudes and dates
-    for record in records:
-
-        magnitude = float(record["mag"])
-
-        if magnitude < 6:
-            raise ValueError(
-                f"Invalid magnitude for event {record['id']}"
-            )
-
-        if not ("2010-01-01" <= record["time"][:10] < "2012-01-01"):
-            raise ValueError(
-                f"Event outside 2010-2011: {record['id']}"
-            )
-
-    print(f"USGS records: {len(records)}")
-    print(f"Unique identifiers: {len(set(ids))}")
-
-    print("USGS historical data validated successfully.")
-
-    return records
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Download and validate Workshop 1 historical data samples"
-    )
-
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Refresh cached raw sample files"
-    )
-
-    parser.add_argument(
-        "--runup-event-id",
-        type=int,
-        default=4682,
-        help="NOAA tsunami event used to fetch one page of runup samples"
-    )
-
-    args = parser.parse_args()
-
-    print("Starting Workshop 1 historical source exploration...")
-
-    # 1. NOAA historical tsunami events
-    noaa_events = download_noaa_events(force=args.force)
-
-    # 2. NOAA descriptors
-    download_noaa_descriptors(noaa_events, force=args.force)
-
-    # 3. NOAA runup observations
-    runup_sample = download_noaa_runup_sample(
-        noaa_events,
-        event_id=args.runup_event_id,
-        force=args.force
-    )
-
-    # 4. USGS historical earthquakes
-    usgs_records = download_usgs(force=args.force)
-
-    # 5. Summary
-    print("\nHISTORICAL SOURCE SUMMARY")
-
-    print(f"NOAA tsunami events: {len(noaa_events)}")
-
-    print(
-        f"NOAA runups saved for event {runup_sample['event_id']}: "
-        f"{runup_sample['count']} of {runup_sample['total']}"
-    )
-
-    print(f"USGS Pacific earthquakes (2010-2011, M>=6): {len(usgs_records)}")
-
-    print("\nHistorical source exploration completed successfully.")
-
-
-if __name__ == "__main__":
-    main()
+# Request CSV explicitly; the default USGS format is QuakeML (XML)
+raw = get_raw("usgs_earthquakes_2010_2011_m6_pacific.csv", f"{USGS}/query", format="csv", **usgs_params)
