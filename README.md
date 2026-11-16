@@ -44,6 +44,16 @@ docs/          Project documentation
 workshop_1/    Workshop 1 deliverables
 ```
 
+## Setup
+
+Python 3.12 to 3.14. From the repository root:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
 ## Reproduce Workshop 1 profiling
 
 The notebook is [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb). Before running it, download the three selected Marine Regions boundaries from the official VLIZ web feature service (about 85 MB; it takes a few minutes):
