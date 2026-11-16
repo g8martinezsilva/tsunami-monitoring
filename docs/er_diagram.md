@@ -1,6 +1,8 @@
 # Workshop 1 entity–relationship diagram
 
-`event` is one normalized observation from one source. `UNIQUE(source, external_id)` preserves source identity; a revision updates that observation rather than adding another `event`. `raw_reference` identifies the saved file and record, with a content hash when available for change detection; earlier snapshots remain in the raw/audit trail. `event_group` contains at least two verified observations of the **same phenomenon and event type**. An event can belong to zero or one group. Earthquakes, tsunamis, and bulletins remain distinct event types; candidate matches and cross-type links use `event_relation`.
+Each `event` represents an observation from a single source, identified by its original `external_id` and an internal `event_id`. Updated records retain their identifier, while original files are preserved for traceability.
+
+`event_group` groups verified observations of the same real-world event, while `event_relation` connects related earthquakes, tsunamis, and official bulletins. These relationships allow the system to preserve information from each source without incorrectly merging different phenomena.
 
 ```mermaid
 erDiagram
@@ -157,4 +159,8 @@ erDiagram
     noaa_warning_status o|--o{ tsunami_event : warning_status
 ```
 
-The three optional domain lines encode a subtype choice: **exactly one** detail row must match `event.event_type`. Mermaid's `|{` shows one or more group members but cannot express the **two-member minimum**, which is a business rule. `event_relation` records `identity_candidate`, `caused_by`, or `reports_on` links with `pending`, `accepted`, or `rejected` review status. A confirmed identity is represented by `event_group` membership; the original candidate relation may remain as review evidence without becoming a second source of truth. NOAA descriptor FKs, group membership, source watermark, and last successful run are optional where the source data or process do not provide them. Field definitions and validation rules are in [workshop_1/mapping.md](../workshop_1/mapping.md).
+Each `event` has one corresponding detail record in `earthquake`, `tsunami_event`, or `tsunami_bulletin`, depending on its `event_type`. An `event_group` contains at least two verified observations of the same event, while `event_relation` stores possible matches and relationships between events, together with their review status.
+
+Optional relationships allow the model to handle missing information without creating artificial values. The proposed structure supports the current Workshop 1 requirements and can be extended during database implementation.
+
+Field definitions and normalization rules are documented in [workshop_1/mapping.md](../workshop_1/mapping.md).
