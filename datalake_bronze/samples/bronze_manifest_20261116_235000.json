@@ -1,0 +1,154 @@
+{
+  "run_id": "manual__2026-11-16T23:50:00+00:00",
+  "logical_date": "2026-11-16T23:50:00+00:00",
+  "period": {
+    "start": "2010-01-01",
+    "end": "2025-12-31"
+  },
+  "sources": [
+    {
+      "source": "noaa_hazel",
+      "files": [
+        "/opt/airflow/datalake_bronze/noaa_hazel_page1_20261116_235000.json",
+        "/opt/airflow/datalake_bronze/noaa_hazel_page2_20261116_235000.json"
+      ],
+      "records": 221
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2010_20261116_235000.csv"
+      ],
+      "records": 157
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2011_20261116_235000.csv"
+      ],
+      "records": 186
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2012_20261116_235000.csv"
+      ],
+      "records": 110
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2013_20261116_235000.csv"
+      ],
+      "records": 115
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2014_20261116_235000.csv"
+      ],
+      "records": 130
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2015_20261116_235000.csv"
+      ],
+      "records": 121
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2016_20261116_235000.csv"
+      ],
+      "records": 127
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2017_20261116_235000.csv"
+      ],
+      "records": 86
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2018_20261116_235000.csv"
+      ],
+      "records": 113
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2019_20261116_235000.csv"
+      ],
+      "records": 129
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2020_20261116_235000.csv"
+      ],
+      "records": 95
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2021_20261116_235000.csv"
+      ],
+      "records": 121
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2022_20261116_235000.csv"
+      ],
+      "records": 106
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2023_20261116_235000.csv"
+      ],
+      "records": 124
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2024_20261116_235000.csv"
+      ],
+      "records": 90
+    },
+    {
+      "source": "usgs_fdsn",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_fdsn_2025_20261116_235000.csv"
+      ],
+      "records": 120
+    },
+    {
+      "source": "usgs_realtime",
+      "files": [
+        "/opt/airflow/datalake_bronze/usgs_realtime_20261116_235000.geojson"
+      ],
+      "records": 683
+    },
+    {
+      "source": "ntwc",
+      "files": [
+        "/opt/airflow/datalake_bronze/ntwc_20261116_235000.xml",
+        "/opt/airflow/datalake_bronze/ntwc_cap1_20261116_235000.xml"
+      ],
+      "records": 1
+    },
+    {
+      "source": "ptwc",
+      "files": [
+        "/opt/airflow/datalake_bronze/ptwc_20261116_235000.xml",
+        "/opt/airflow/datalake_bronze/ptwc_cap1_20261116_235000.xml"
+      ],
+      "records": 1
+    }
+  ],
+  "problems": []
+}
