@@ -211,8 +211,9 @@ maritime regions and the 100 km monitoring distance.}
 \label{tab:pacific-scope}
 \end{table}
 
-These counts are based on the exploratory implementation and
-must be checked again after the final antimeridian validation.
+These counts come from Section 4 of \path{notebooks/01_source_profiling.ipynb}, run with the boundaries downloaded by \path{workshop_1/download_marine_regions.py}.
+Spatial tests use a continuous 0--360$^\circ$ longitude axis, so regions that cross the antimeridian are tested correctly: for example, the 16 November NTWC bulletin near Kodiak, Alaska ($151^\circ$W) is inside the scope, while the PTWC bulletin near Isla Mona in the Caribbean is outside.
+Applied to the other samples, the scope contains 319 of the 343 USGS historical events (261 inside the official regions), 492 of the 679 events of the 16 November USGS real-time snapshot, and one of the two bulletins of that snapshot.
 
 The geographic classification excludes NOAA event 5869, associated
 with the 2022 Lake Taup\={o} tsunami in New Zealand \cite{taupo}.
@@ -359,8 +360,7 @@ to the study area.
 Events without valid coordinates are reported separately
 instead of being assigned an invented location.
 
-The final number of USGS historical events retained by this
-filter will be updated from the validated notebook results.
+With this filter, 319 of the 343 USGS historical events are retained: 261 inside the official regions and 58 more within the 100~km margin; 24 events fall outside the scope (Section~\ref{sec:hazard}).
 
 \section{Incremental Sources}
 \label{sec:incremental}
@@ -431,8 +431,7 @@ include changes to magnitude, depth, or location.
 An absent event was present in the earlier file but not in the later one.
 The USGS feed covers a moving past-month period, so absence does not
 establish deletion or an exact 30-day removal rule.
-No Pacific-scope count is asserted here for the 22 new events because
-the earlier count used the superseded manual polygon.
+The notebook applies the Pacific scope to the latest snapshot rather than to each interval: 492 of the 679 events of 16 November are inside the scope (Section~\ref{sec:hazard}).
 The comparisons and examples are in Section 5 of
 \path{notebooks/01_source_profiling.ipynb}.
 
@@ -497,7 +496,7 @@ Table~\ref{tab:profile} summarizes the result.
 No source has duplicated identifiers inside a snapshot, and no coordinate is outside the WGS84 ranges or at $(0, 0)$; the only invalid locations are 9 HazEL events without coordinates.
 All timestamps are in UTC, but in four different formats: HazEL splits the date into six columns (\texttt{year} to \texttt{second}, with fractional seconds and with \texttt{hour} and \texttt{minute} sometimes missing), the FDSN CSV uses ISO~8601 with \texttt{Z}, the real-time feed uses epoch milliseconds, and tsunami.gov uses ISO~8601 (with \texttt{Z} in the Atom feed and the offset \texttt{-00:00} in CAP).
 Depth is given in kilometers by USGS, as an integer without unit by HazEL, and as text with its unit (\texttt{473 kilometers}) by the CAP messages.
-Magnitude comes with its type in USGS (6 types in each sample: \texttt{mww}, \texttt{mwc}, \texttt{mb}, \texttt{mwb}, \texttt{mw}, \texttt{ms} in the catalog; \texttt{mb} for 609 of 726 feed events), without type in HazEL, and as a preliminary value with its type (\texttt{Ml}, \texttt{Mwp}) in tsunami.gov.
+Magnitude comes with its type in USGS (6 types in each sample: \texttt{mww}, \texttt{mwc}, \texttt{mb}, \texttt{mwb}, \texttt{mw}, \texttt{ms} in the catalog; \texttt{mb} for 562 of 679 feed events), without type in HazEL, and as a preliminary value with its type (\texttt{Ml}, \texttt{Mwp}) in tsunami.gov.
 
 \begin{table}[H]
 \centering
@@ -508,11 +507,11 @@ Source & Records & Dupl.\ ids & Notes \\
 \midrule
 NOAA HazEL & 221 & 0 & 56 columns; 2010-01-02 to 2025-12-12. Impact fields (deaths, damage, houses) are 63--99.5\% null; \texttt{warningStatusId} 76.5\% null; \texttt{eqMagnitude} and \texttt{eqDepth} 15.8\% null (tsunamis without an earthquake cause); 9 events without coordinates. \\
 USGS FDSN & 343 & 0 & 24 columns; 2010--2011, $M$ 6.0--9.1, depth 2.8--644.6~km. \texttt{magError} 100\% null; \texttt{dmin} and \texttt{horizontalError} 99.4\% null; \texttt{depthError} 80.8\% null. All events \texttt{reviewed}. \\
-USGS real-time & 726 & 0 & 32 columns; 8 October to 7 November 2026, $M$ 4.5--7.7, depth 1--643~km. \texttt{tz} 100\% null; \texttt{alert} 89.8\% null; \texttt{felt}, \texttt{cdi} 82.4\% null. All events \texttt{reviewed}; 6 with \texttt{tsunami} = 1. \\
-tsunami.gov & 2 & 0 & The saved 7 November afternoon feeds contain one message per center (NTWC and PTWC), so the 200-record minimum cannot apply. Both are information statements (\texttt{Minor} / \texttt{Unlikely}). \\
+USGS real-time & 679 & 0 & 32 columns; origin times 17 October to 15 November 2026, $M$ 4.5--7.0, depth 1--642~km. \texttt{tz} 100\% null; \texttt{alert} 90.1\% null; \texttt{mmi} 88.5\% null; \texttt{felt}, \texttt{cdi} 84.8\% null. All events \texttt{reviewed}; 5 with \texttt{tsunami} = 1. \\
+tsunami.gov & 6 & 0 & Six distinct CAP messages (three per center) in the four snapshots; each feed holds only its latest messages, so the 200-record minimum cannot apply. All six are information statements (\texttt{Tsunami Information}, \texttt{Minor} / \texttt{Unlikely}). \\
 \bottomrule
 \end{tabularx}
-\caption{Profiling summary of the four samples (7 November afternoon snapshot for the incremental sources).}
+\caption{Profiling summary of the four samples (16 November snapshot for the USGS real-time feed; distinct messages of the four snapshots for tsunami.gov).}
 \label{tab:profile}
 \end{table}
 
@@ -532,7 +531,7 @@ Eight problems were identified in the saved samples. The notebook's Section 6 pr
 4 & USGS FDSN & Columns that are always or almost always empty: \texttt{magError} is 100\% null, \texttt{dmin} and \texttt{horizontalError} 99.4\%. & Event \texttt{official2011\allowbreak 0311054624120\_30} (Tohoku, 11 March 2011): empty \texttt{magError}, \texttt{horizontalError} and \texttt{dmin}. \\
 5 & tsunami.gov & Location as free text and depth as text with its unit; the location text uses miles. & NTWC message \texttt{PAAQ-1-to0j1g}: ``75 miles SW of Eureka, California''; CAP \texttt{EventDepth} = ``13 kilometers''. \\
 6 & tsunami.gov & Suspected CAP origin-date error: the stated time is about one day earlier than a plausible USGS earthquake candidate. & PTWC message \texttt{PHEB-1-26297050}, sent 25 October 2026 at 02:27 UTC, gives \texttt{EventOriginTime} 24 October 02:09 UTC; USGS candidate \texttt{us6000u4r9} occurred on 25 October at 02:09:24 UTC. \\
-7 & USGS real-time & The \texttt{tsunami} flag can be misread: it means that a bulletin may exist, not that a tsunami happened (6 of 726 events in the 7 November afternoon snapshot). & Event \texttt{us6000u4r9} (Bonin Islands, $M$ 6.5, depth 492~km): \texttt{tsunami} = 1, while the PTWC message for it says \texttt{Minor} / \texttt{Unlikely}. \\
+7 & USGS real-time & The \texttt{tsunami} flag can be misread: it means that a bulletin may exist, not that a tsunami happened (5 of 679 events in the 16 November snapshot). & Event \texttt{us6000u4r9} (Bonin Islands, $M$ 6.5, depth 492~km): \texttt{tsunami} = 1, while the PTWC message for it says \texttt{Minor} / \texttt{Unlikely}. \\
 8 & tsunami.gov &
 Invalid CAP validity interval: an observed bulletin has an
 expiration time earlier than its publication time. &
@@ -665,6 +664,7 @@ Time and distance alone never confirm identity, and a non-seismic tsunami needs 
   \item \textbf{Scope flags:} \texttt{in\_pacific\_ocean} and \texttt{in\_pacific\_scope} follow the Marine Regions selection and the 100~km margin of Section~\ref{sec:hazard}; events without valid coordinates are counted separately.
   \item \textbf{Depth and heights:} USGS depth and NOAA \texttt{eqDepth} are in kilometers, and NOAA \texttt{maxWaterHeight} is in meters, as documented in the HazEL search forms (Section~1.1). CAP depth text is parsed to km only when the unit is explicit.
   \item \textbf{Magnitude and severity:} magnitude is always stored with its type (\texttt{mww}, \texttt{mb}, \texttt{Ml}, \texttt{Mwp}, \ldots). Earthquake magnitude, tsunami water height and CAP severity are three different scales recorded in \texttt{severity\_scale}; they are never compared or aggregated. The USGS \texttt{tsunami} flag, NOAA \texttt{warningStatusId} and CAP severity are not interchangeable and none of them proves that a tsunami occurred.
+  \item \textbf{Missing values and validation:} missing information stays \texttt{NULL} and is never replaced by invented values. During ingestion, required identifiers, data types and coordinate ranges are validated, and records that cannot be processed go to \texttt{rejected\_record} with the reason.
   \item \textbf{Identifiers and revisions:} source IDs are kept as text; \texttt{UNIQUE(source, external\_id)} identifies the current observation, and a content hash detects real changes. Earlier versions remain traceable through the saved raw files. A new CAP identifier is a new bulletin, not a revision of an earlier one.
   \item \textbf{Cross-source matching:} the exploratory rule of Section~\ref{sec:overlap} (15 minutes for exact NOAA times, at most 100~km between epicenters, and a magnitude difference of at most 0.5 where required) only proposes \texttt{identity\_candidate} links. The 100~km matching tolerance is independent of the 100~km monitoring margin. Ambiguous candidates, such as the two NOAA records with more than one eligible USGS event, stay pending until reviewed.
 \end{itemize}
