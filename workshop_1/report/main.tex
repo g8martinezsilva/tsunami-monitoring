@@ -737,47 +737,107 @@ The \texttt{-{}-mode status} command reports, for each source, the watermark, th
 \label{sec:project}
 
 \subsection{Project Overview}
-\todo{Title, motivation, goal (data-engineering and analytical), scope, explicit exclusions and constraints.}
+\textbf{Title.} Tsunami Monitoring System: Pacific earthquakes in the context of historical tsunamis and official bulletins.
+
+\textbf{Motivation.} Large Pacific earthquakes are reported within minutes, but judging whether one deserves attention requires combining several sources that use different formats, identifiers, times and magnitude types (Sections~\ref{sec:historical}--\ref{sec:profiling}).
+
+\textbf{Goal.} From a data-engineering perspective, the goal is a reproducible pipeline that loads two historical and two incremental sources into one canonical model, with idempotent incremental updates, validation and quarantine (Sections~\ref{sec:mapping} and~\ref{sec:contract}).
+From an analytical perspective, the goal is to show what is happening now in the Pacific, compare it with the 2010--2025 record, and summarize each significant earthquake with a tsunami-relevance indicator (Section~\ref{sec:indicator}).
+
+\textbf{Scope.} Pacific maritime regions plus a 100~km margin (Section~\ref{sec:hazard}); historical period 2010--2025; earthquakes with $M \geq 4.5$ for the recent-events view and $M \geq 6$ for statistics and the indicator; official bulletins from NTWC and PTWC.
+
+\textbf{Explicit exclusions.} The system does not predict tsunamis, issue warnings, model wave propagation or inundation, or replace the warning centers.
+It does not load run-up observations (Section~\ref{sec:historical}), river and lake tsunamis outside the maritime scope, or Colombian national sources, which would first need demonstrated programmatic access.
+
+\textbf{Constraints.} Only free sources are used, within their rate limits and licenses; tsunami.gov keeps only its latest messages; preliminary magnitudes and locations are revised for weeks (Section~\ref{sec:empirical-updates}); and the whole system must run locally with Docker Compose on the team's laptops.
 
 \subsection{Functional User}
-\todo{Role, profile, decisions supported, and why the dashboard is useful.}
+The functional user is a \textbf{monitoring analyst in a coastal emergency-management office} facing the Pacific (for example, an analyst supporting the Colombian Pacific coast).
+The analyst is familiar with earthquake magnitude and depth but is not a seismologist, and works from a desktop browser during the day and when a large earthquake is reported.
+
+\textbf{Decisions supported.} Which recent earthquakes deserve attention; whether an official tsunami bulletin exists for an earthquake and what it says; whether an earthquake is unusual compared with the historical record of its region; and whether the data on screen are fresh and complete enough to brief others.
+
+\textbf{Why the dashboard helps.} Today this requires visiting the USGS map, the tsunami.gov feeds and the NOAA database separately and matching records by hand.
+The dashboard brings them together on one map with a common time base, the historical context and an explicit data-health panel.
+Official decisions remain with the warning centers and national authorities; the dashboard is a monitoring and correlation aid.
 
 \subsection{User Stories}
-\noindent\begin{tabularx}{\textwidth}{@{}clXc@{}}
+Priorities follow MoSCoW (Must, Should, Could, Won't).
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}cl>{\raggedright\arraybackslash}Xc@{}}
 \toprule
 ID & Type & Story & MoSCoW \\
 \midrule
-US1 & Monitoring & As a \todo{user}, I want to \todo{action} so that \todo{benefit}. & \todo{} \\
-US2 & Monitoring & \todo{} & \todo{} \\
-US3 & Analysis & \todo{} & \todo{} \\
-US4 & Analysis & \todo{} & \todo{} \\
-US5 & Trust & \todo{} & \todo{} \\
-US6 & Trust & \todo{} & \todo{} \\
+US1 & Monitoring & As a monitoring analyst, I want to see on a map the earthquakes with $M \geq 4.5$ in the Pacific scope from the last 24 hours and 7 days, so that I know what is new. & Must \\
+US2 & Monitoring & As a monitoring analyst, I want to see the latest NTWC and PTWC bulletin next to the earthquake it refers to, so that the official assessment is always visible. & Must \\
+US3 & Analysis & As a monitoring analyst, I want to compare a new $M \geq 6$ earthquake with the historical earthquakes and tsunamis of the same region, so that I can tell whether it is unusual. & Must \\
+US4 & Analysis & As a monitoring analyst, I want each $M \geq 6$ earthquake to show its tsunami-relevance level and the inputs behind it, so that I can prioritize attention and explain the level. & Should \\
+US5 & Trust & As a monitoring analyst, I want to see the last successful run and the watermark age of every source, so that I know how fresh the data are. & Must \\
+US6 & Trust & As a monitoring analyst, I want to see rejected records and data-quality flags (for example, an inconsistent CAP time), so that I know how complete and reliable the data are. & Should \\
 \bottomrule
 \end{tabularx}
+\caption{User stories.}
+\label{tab:stories}
+\end{table}
 
 \subsection{Indicator Proposal}
-\todo{Name, inputs (magnitude, depth, location, historical tsunami association, official alert), rule, output scale, how it will be validated against historical events. State clearly that it is a monitoring aid and not a prediction, and list its limitations.}
+\label{sec:indicator}
+The \textbf{Tsunami Relevance Level} (TRL) summarizes how much attention a recent earthquake deserves from a tsunami-monitoring perspective.
+It is a monitoring aid, \textbf{not a tsunami prediction or warning}; official warnings come only from the tsunami warning centers.
+
+\textbf{Inputs.} For each earthquake with $M \geq 6$ inside the Pacific scope: magnitude (moment magnitude preferred), focal depth, historical tsunami association, and the official bulletin linked to it, if any.
+
+\textbf{Rule (all thresholds are parameters in the configuration).}
+\begin{itemize}[nosep]
+  \item Magnitude points: 1 for $6.0 \leq M < 7.0$, 2 for $7.0 \leq M < 8.0$, 3 for $M \geq 8.0$.
+  \item Depth point: 1 if the depth is at most 70~km, since shallow earthquakes are more likely to displace the seafloor.
+  \item History point: 1 if at least one probable or definite (validity 3--4) earthquake-caused HazEL tsunami lies within 300~km.
+  \item Level: \textbf{LOW} for 0--2 points, \textbf{MODERATE} for 3, \textbf{HIGH} for 4--5. An earthquake deeper than 300~km is at most LOW.
+  \item Official override: a linked CAP bulletin with a severity above \texttt{Minor} (advisory, watch or warning) is shown as \textbf{OFFICIAL ALERT} and is never displayed below HIGH.
+\end{itemize}
+
+\textbf{Examples from the samples.} The 2011 Tohoku earthquake ($M$ 9.1, 29~km deep, historical tsunamis nearby) scores 5 points and is HIGH.
+The 25 October 2026 Bonin Islands earthquake ($M$ 6.5, 492~km deep) would score 2 points (it has two 2023 Izu Islands tsunamis within 300~km), but its depth limits it to LOW, consistent with the PTWC information statement (\texttt{Minor} / \texttt{Unlikely}).
+
+\textbf{Validation against historical events.} The indicator will be applied to the 1,930 USGS $M \geq 6$ earthquakes of 2010--2025 (Table~\ref{tab:usgs-counts}), using the confirmed NOAA--USGS links as ground truth and excluding each earthquake's own tsunami from its history point.
+Two measures will be reported: the share of tsunami-associated earthquakes rated MODERATE or HIGH, and the share of earthquakes without a tsunami rated HIGH.
+A sensitivity analysis will vary the magnitude limits by $\pm 0.5$, the depth limit between 50 and 100~km, and the history radius between 200 and 500~km.
+
+\textbf{Limitations.} The level uses proxies only: it ignores the focal mechanism, the distance to the coast and local bathymetry; preliminary magnitudes and depths change after publication; the 2010--2025 history is short and uneven across regions; landslide and volcanic tsunamis are not rated; and the official override depends on U.S. warning centers whose coverage does not include every Pacific coast.
 
 \subsection{Risks and Mitigation}
-\noindent\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
 \toprule
 Risk & Impact & Mitigation \\
 \midrule
-Source outage & \todo{} & \todo{} \\
-Rate limits & \todo{} & \todo{} \\
-Schema change & \todo{} & \todo{} \\
-License and attribution & \todo{} & \todo{} \\
-Ambiguous identifiers & \todo{} & \todo{} \\
+Source outage & Missing updates; the dashboard shows stale data without noticing. & Retries with increasing waits; failed runs keep the previous watermark; the data-health panel shows the watermark age (Section~\ref{sec:contract}). \\
+Rate limits & Blocked or truncated requests (USGS FDSN returns at most 20,000 events per query). & One USGS request per year with a \texttt{count} check; polling at most once per minute (USGS) and every 5 minutes (tsunami.gov); identified User-Agent; caching of raw files. \\
+Schema change & Parsing failures or silently wrong fields (the two centers already use different CAP parameters, and Marine Regions stores ``Easter'' instead of ``Eastern''). & Validation before loading, \texttt{rejected\_record} with the reason, raw files kept for reprocessing, and tests with recorded fixtures. \\
+License and attribution & Use outside the terms of a source (Marine Regions asks users not to redistribute its files). & Licenses recorded per source; boundaries downloaded by a script instead of committed; credit lines in the report and README. \\
+Ambiguous identifiers & Wrong links between records (two NOAA records have more than one USGS candidate; a PTWC CAP origin date is one day off). & Links stored as \texttt{identity\_candidate} with a review status; no automatic merging; groups only after review. \\
+Record revisions & Outdated values (25 relocations in nine hours; six magnitudes lowered below 4.5). & Watermark on \texttt{updated}, content hash, re-reading the 30-day feed and an FDSN lookup for early absences (Section~\ref{sec:empirical-updates}). \\
+Data volume & Memory exhaustion: the 100~km test on the 85~MB maritime boundaries exhausted a 7~GB laptop when run together with other programs. & Prepared geometries, simplified boundaries for display, and heavy notebook steps run alone. \\
 \bottomrule
 \end{tabularx}
+\caption{Risks and mitigation.}
+\label{tab:risks}
+\end{table}
 
 \subsection{Architecture Overview}
+Figure~\ref{fig:architecture} adapts the course reference architecture to the four sources; it is exported from the Mermaid source in \path{docs/architecture.md}.
+All components run locally with Docker Compose; the scheduler (proposed: an Apache Airflow DAG) runs \texttt{ingest.py -{}-mode incremental}, and the Plotly Dash dashboard reads only from the database.
+
 \begin{figure}[H]
 \centering
-\fbox{\parbox{0.8\textwidth}{\centering\vspace{3cm}\todo{insert architecture diagram}\vspace{3cm}}}
-% \includegraphics[width=\textwidth]{figures/architecture.png}
-\caption{High-level architecture adapted to tsunami monitoring.}
+\includegraphics[width=\textwidth]{figures/architecture.png}
+\caption{High-level architecture (source: \texttt{docs/architecture.md}).}
+\label{fig:architecture}
 \end{figure}
 
 
@@ -816,8 +876,10 @@ Smithsonian Institution, Global Volcanism Program (2022).
 \bibitem{tracy}
 Shugar, D. H., et al.\ (2026).
 \emph{A 481 m-high landslide-tsunami in a
-cruise ship-frequented Alaska fjord}.
+cruise ship--frequented Alaska fjord}.
+\textit{Science}. doi:10.1126/science.aec3187.
 \url{https://doi.org/10.1126/science.aec3187}.
+Accessed 16 November 2026.
 \end{thebibliography}
 
 
