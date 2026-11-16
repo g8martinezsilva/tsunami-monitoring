@@ -1,6 +1,6 @@
 # Data sources of the Team 8 tsunami monitoring system (Workshop 1 ingestion contract).
 # One entry per source: access, schedule, watermark, duplicate key, limits and license.
-# Details and evidence: workshop_1/report/main.tex (Data Sources and Methodology chapters).
+# Details and evidence: workshop_1/report/Team8_Workshop1_Tsunami.tex (Data Sources and Methodology chapters).
 # Secrets and machine-specific settings go in .env (see .env.example), never here.
 
 user_agent_env: HTTP_USER_AGENT  # every request sends an identified User-Agent
