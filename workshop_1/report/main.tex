@@ -429,8 +429,11 @@ A modified event keeps its \texttt{id} but changes \texttt{properties}
 or \texttt{geometry}; the 25 modified events in the first interval
 include changes to magnitude, depth, or location.
 An absent event was present in the earlier file but not in the later one.
-The USGS feed covers a moving past-month period, so absence does not
-establish deletion or an exact 30-day removal rule.
+The feed lists $M \geq 4.5$ events of the past 30 days, so an event can leave it by aging out, by a magnitude revision below 4.5, or by deletion.
+Across the three intervals, 288 events became absent: 282 had origin times older than the 30-day cutoff of the later snapshot, and the other six were looked up in the USGS FDSN catalog.
+None of the six had been deleted; all were still \texttt{reviewed} events whose magnitude had been revised from 4.5--4.6 to 4.4 (\texttt{mb}), below the feed threshold (for example, \texttt{us6000u4kh} near Vanuatu).
+No absence was therefore a deletion, but absence alone does not show which case applies.
+The saved catalog responses are in \path{workshop_1/samples/usgs_fdsn_absent_events_20261116.json}.
 The notebook applies the Pacific scope to the latest snapshot rather than to each interval: 492 of the 679 events of 16 November are inside the scope (Section~\ref{sec:hazard}).
 The comparisons and examples are in Section 5 of
 \path{notebooks/01_source_profiling.ipynb}.
@@ -455,8 +458,10 @@ each downloaded feed and use \texttt{updated} rather than origin
 keyed by a source identifier and event ID. A content hash of selected
 normalized fields could distinguish substantive changes from metadata
 updates. An event absent from a later feed should be retained while
-its status is investigated; an FDSN lookup by event ID is a proposed
-check for possible deletion, not a check performed in this workshop.
+its status is investigated: an absence can mean aging out of the 30-day window,
+a magnitude revision below 4.5, or a deletion. An FDSN lookup by event ID
+distinguishes these cases; it was done manually for the six early absences of
+Section~\ref{sec:empirical-updates} and will be automated during ingestion.
 
 \paragraph{USGS FDSN catalog.}
 A proposed overlapping query with \texttt{updatedafter} could detect
