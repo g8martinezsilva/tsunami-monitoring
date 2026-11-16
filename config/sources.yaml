@@ -1,0 +1,113 @@
+# Data sources of the Team 8 tsunami monitoring system (Workshop 1 ingestion contract).
+# One entry per source: access, schedule, watermark, duplicate key, limits and license.
+# Details and evidence: workshop_1/report/main.tex (Data Sources and Methodology chapters).
+# Secrets and machine-specific settings go in .env (see .env.example), never here.
+
+user_agent_env: HTTP_USER_AGENT  # every request sends an identified User-Agent
+
+sources:
+  - id: noaa_hazel
+    name: NCEI/WDS Global Historical Tsunami Database (HazEL API)
+    owner: NOAA National Centers for Environmental Information (NCEI)
+    role: historical
+    url: https://www.ngdc.noaa.gov/hazel/hazard-service/api/v1/tsunamis/events
+    docs: https://www.ngdc.noaa.gov/hazel/view/swagger
+    format: json
+    authentication: none
+    query:
+      minYear: 2010
+      maxYear: 2025
+      regionCode: "80,81,82,83,84,85,86,87,88,89"
+      itemsPerPage: 200
+    partitioning: pages 1..totalPages; check count == totalItems and no repeated id
+    schedule: historical mode only
+    watermark_field: null  # records have no update timestamp; refresh compares content hashes
+    duplicate_key: [source, id]
+    overlap_window: null  # every refresh reads the full period
+    rate_limits: not documented; sequential requests, three retries, cached raw files
+    units: {eqDepth: km, maxWaterHeight: m}  # stated in the HazEL search forms
+    license: public use, no use constraints (dataset metadata)
+    citation: "National Geophysical Data Center / World Data Service: NCEI/WDS Global Historical Tsunami Database. NOAA NCEI. doi:10.7289/V5PN93H7"
+
+  - id: usgs_fdsn
+    name: USGS FDSN Event Web Service (earthquake catalog)
+    owner: U.S. Geological Survey, Earthquake Hazards Program
+    role: historical
+    url: https://earthquake.usgs.gov/fdsnws/event/1/query
+    count_url: https://earthquake.usgs.gov/fdsnws/event/1/count
+    format: csv
+    authentication: none
+    query:
+      minmagnitude: 6
+      minlatitude: -60
+      maxlatitude: 65
+      minlongitude: 100
+      maxlongitude: 300
+    partitioning: one calendar year per request (2010-2025); compare each year with the count method
+    schedule: historical mode; daily reconciliation query in incremental mode (proposed)
+    watermark_field: updated  # reconciliation uses updatedafter = watermark - overlap
+    duplicate_key: [source, id]
+    overlap_window: 1 day  # proposed
+    rate_limits: at most 20,000 events per request; one request per year, sequential, cached
+    license: U.S. public domain; credit requested
+    citation: "USGS Earthquake Catalog data courtesy of the U.S. Geological Survey"
+
+  - id: usgs_realtime
+    name: USGS real-time GeoJSON summary feed (M4.5+, past 30 days)
+    owner: U.S. Geological Survey, Earthquake Hazards Program
+    role: incremental
+    url: https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_month.geojson
+    docs: https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php
+    format: geojson
+    authentication: none
+    schedule: every 60 seconds at most (Cache-Control max-age=60)
+    watermark_field: updated  # epoch milliseconds; process an id only if new or updated is greater
+    duplicate_key: [source, id]
+    overlap_window: whole 30-day file is read on every poll
+    absence_check: FDSN lookup by event id (aging out, magnitude below 4.5, or deletion)
+    rate_limits: not documented; feeds recommended by USGS for automated applications
+    license: U.S. public domain; credit requested
+    citation: "USGS Earthquake Catalog data courtesy of the U.S. Geological Survey"
+
+  - id: ntwc
+    name: National Tsunami Warning Center Atom feed (with CAP messages)
+    owner: NOAA National Weather Service, U.S. Tsunami Warning Centers
+    role: incremental
+    url: https://www.tsunami.gov/events/xml/PAAQAtom.xml
+    format: atom+cap (xml)
+    authentication: none
+    schedule: every 5 minutes
+    watermark_field: cap.sent  # latest stored bulletin per center
+    duplicate_key: [source, cap.identifier]
+    overlap_window: all entries present in the feed are re-checked on every poll
+    rate_limits: not documented; conditional requests with If-Modified-Since (to be tested)
+    license: U.S. Government work, public domain
+    citation: "NOAA/NWS U.S. Tsunami Warning Centers"
+
+  - id: ptwc
+    name: Pacific Tsunami Warning Center Atom feed (with CAP messages)
+    owner: NOAA National Weather Service, U.S. Tsunami Warning Centers
+    role: incremental
+    url: https://www.tsunami.gov/events/xml/PHEBAtom.xml
+    format: atom+cap (xml)
+    authentication: none
+    schedule: every 5 minutes
+    watermark_field: cap.sent
+    duplicate_key: [source, cap.identifier]
+    overlap_window: all entries present in the feed are re-checked on every poll
+    rate_limits: not documented; conditional requests with If-Modified-Since (to be tested)
+    license: U.S. Government work, public domain
+    citation: "NOAA/NWS U.S. Tsunami Warning Centers"
+
+geographic_reference:
+  name: Global Oceans and Seas, version 1 (Marine Regions)
+  owner: Flanders Marine Institute (VLIZ)
+  url: https://geo.vliz.be/geoserver/MarineRegions/wfs  # downloaded by workshop_1/download_marine_regions.py
+  file: config/geographic_reference/pacific_maritime_regions.geojson  # git-ignored
+  regions:
+    - North Pacific Ocean
+    - South Pacific Ocean
+    - South China and Easter Archipelagic Seas  # literal name in the dataset ("Eastern" when published)
+  monitoring_margin_km: 100
+  license: CC BY 4.0; do not redistribute the files
+  citation: "Flanders Marine Institute (2021). Global Oceans and Seas, version 1. https://doi.org/10.14284/542"
