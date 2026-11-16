@@ -4,11 +4,11 @@ Team 8 project for Data Analysis Programming (2026-II), Universidad Distrital Fr
 
 ## Hazard
 
-A tsunami is a series of ocean waves usually caused by a large undersea earthquake. This system integrates historical and near-real-time earthquake and tsunami data to show how relevant a significant earthquake may be, based on its magnitude, depth, location, historical tsunami association, and official alerts.
+A tsunami is a series of ocean waves that can be caused by a large undersea earthquake. This project monitors recent Pacific earthquakes, places them in the context of historical earthquake and tsunami records, and incorporates official tsunami bulletins when available to assess potential tsunami relevance. Historical context does not imply a direct link between each recent earthquake and a historical tsunami.
 
-This is a monitoring and correlation tool. It does not predict tsunamis.
+This is a monitoring and correlation tool. It does not predict tsunamis or replace official warning systems.
 
-**Scope:** Pacific basin, including Alaska and Hawaii, for 2010–2025. NOAA HazEL regions 80–89 and the USGS rectangle latitude −60..65, longitude 100..300 define the historical samples; earthquakes have magnitude ≥ 6.
+**Scope:** The monitoring area uses three Marine Regions Pacific maritime regions, including waters near Alaska and Hawaii, and a project-defined 100 km influence area. Historical samples cover NOAA HazEL tsunamis from 2010–2025 and USGS FDSN earthquakes from 2010–2011 with magnitude ≥ 6. The source queries used NOAA HazEL regions 80–89 and a USGS rectangle spanning latitude −60..65 and longitude 100..300; these query filters are distinct from the geographic classification in the notebook.
 
 Regenerate historical samples with `python3 workshop_1/download_historical_samples.py --force`.
 
@@ -20,7 +20,7 @@ Regenerate historical samples with `python3 workshop_1/download_historical_sampl
 
 ## Data sources
 
-These sources are being validated in Workshop 1.
+Workshop 1 profiles saved samples from these four source families.
 
 | Type | Source | Format |
 |---|---|---|
@@ -44,6 +44,15 @@ docs/          Project documentation
 workshop_1/    Workshop 1 deliverables
 ```
 
-## Status
+## Reproduce Workshop 1 profiling
 
-Workshop 1 in progress: source validation and data contract. Setup and run instructions will be added as the system is built.
+The notebook is [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb). Before running it, extract the selected Marine Regions boundaries from the published ZIP:
+
+```bash
+unzip config/geographic_reference/pacific_maritime_regions.zip \
+  -d config/geographic_reference/
+```
+
+The archive contains `pacific_maritime_regions.geojson` at its root, so this command creates `config/geographic_reference/pacific_maritime_regions.geojson`. The extracted GeoJSON is excluded by `.gitignore`. Run the notebook from the `notebooks/` directory, where its relative paths resolve to the saved samples and geographic file.
+
+The Workshop 1 canonical mapping and entity–relationship diagram are in [workshop_1/mapping.md](workshop_1/mapping.md) and [docs/er_diagram.md](docs/er_diagram.md).
