@@ -85,7 +85,7 @@ The script creates `config/geographic_reference/pacific_maritime_regions.geojson
 
 ## Workshop 1 deliverables
 
-- Report: [workshop_1/report/main.pdf](workshop_1/report/main.pdf) (LaTeX source `main.tex`)
+- Report: [workshop_1/report/Team8_Workshop1_Tsunami.pdf](workshop_1/report/Team8_Workshop1_Tsunami.pdf) (LaTeX source `Team8_Workshop1_Tsunami.tex`)
 - Source profiling notebook: [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb)
 - Raw samples: [workshop_1/samples/](workshop_1/samples/)
 - Canonical mapping: [workshop_1/mapping.md](workshop_1/mapping.md)
