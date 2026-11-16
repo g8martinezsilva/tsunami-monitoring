@@ -638,12 +638,12 @@ Four NOAA descriptor catalogs (\texttt{noaa\_cause}, \texttt{noaa\_event\_validi
 \paragraph{Event identity and links.}
 Observations of the same phenomenon from different sources are not merged into one row.
 After review, observations of the same type (for example, an FDSN and a real-time record of one earthquake) join the same \texttt{event\_group}, which needs at least two members.
-Links between different types are stored in \texttt{event\_relation}: \texttt{identity\_candidate} (a possible match awaiting review), \texttt{caused\_by} (tsunami to earthquake) and \texttt{reports\_on} (bulletin to earthquake or tsunami), each with a \texttt{pending}, \texttt{accepted} or \texttt{rejected} status and an evidence reference.
+The \texttt{event\_relation} table records \texttt{identity\_candidate} links between possible observations of the same phenomenon, as well as cross-type \texttt{caused\_by} (tsunami to earthquake) and \texttt{reports\_on} (bulletin to earthquake or tsunami) links. Each relation has a \texttt{pending}, \texttt{accepted} or \texttt{rejected} status and an evidence reference; confirmed same-phenomenon identity is represented by \texttt{event\_group} membership.
 Time and distance alone never confirm identity, and a non-seismic tsunami needs no earthquake link.
 
 \subsection{Unit Conversions and Rules}
 \begin{itemize}[nosep]
-  \item \textbf{Time:} all timestamps are converted to UTC and kept as distinct fields: USGS origin and update times (epoch milliseconds in the feed), CAP \texttt{sent}, \texttt{expires} and reported origin, and Atom \texttt{updated}. A NOAA record without seconds keeps its date and known clock components with a \texttt{time\_precision}. Inconsistent source times, such as the PTWC origin date (problem 6) or the NTWC \texttt{expires} before \texttt{sent} (problem 8), are flagged and preserved, never silently corrected.
+  \item \textbf{Time:} USGS origin and update times (epoch milliseconds in the feed), CAP \texttt{sent}, \texttt{expires} and reported origin, and Atom \texttt{updated} are normalized to UTC and kept as distinct fields. NOAA JSON records have no explicit time-zone field; interpreting complete NOAA times as UTC for comparison is an assumption requiring source confirmation. A NOAA record without seconds keeps its date and known clock components with a \texttt{time\_precision}. Inconsistent source times, such as the PTWC origin date (problem 6) or the NTWC \texttt{expires} before \texttt{sent} (problem 8), are flagged and preserved, never silently corrected.
   \item \textbf{Coordinates:} WGS84 (EPSG:4326) decimal degrees; the canonical longitude is normalized to $-180$ to $180$ while the raw value is kept. GeoJSON order is longitude, latitude, depth. Spatial tests across the antimeridian are handled separately.
   \item \textbf{Scope flags:} \texttt{in\_pacific\_ocean} and \texttt{in\_pacific\_scope} follow the Marine Regions selection and the 100~km margin of Section~\ref{sec:hazard}; events without valid coordinates are counted separately.
   \item \textbf{Depth and heights:} USGS depth and NOAA \texttt{eqDepth} are in kilometers, and NOAA \texttt{maxWaterHeight} is in meters, as documented in the HazEL search forms (Section~\ref{sec:severity}). CAP depth text is parsed to km only when the unit is explicit.
@@ -688,21 +688,20 @@ tsunami.gov (NTWC, PTWC) & -- & Poll each Atom feed every 5 minutes; a CAP \text
 \label{tab:contract}
 \end{table}
 
-Every downloaded response is first saved unchanged in the raw landing zone (\path{data/raw/}) with the name \path{source_YYYYMMDD_HHMMSS.ext}, before any parsing.
-Records that fail validation (for example, invalid coordinates or an unparseable time) go to \texttt{rejected\_record} with the run identifier and the reason, and never stop the rest of the batch.
-Both incremental modes are idempotent: running them twice in a row stores no duplicate rows, because writes are upserts on the duplicate key and a record whose content hash has not changed is skipped.
+The Workshop 1 stub saves downloaded responses unchanged in the raw landing zone (\path{data/raw/}) with the name \path{source_YYYYMMDD_HHMMSS.ext}. Under the proposed full ingestion contract, validation failures (for example, invalid coordinates or an unparseable time) would go to \texttt{rejected\_record} with the run identifier and reason without stopping the rest of the batch.
+The proposed incremental modes would be idempotent: rerunning them would store no duplicate rows because writes would use upserts on the duplicate key and skip records with unchanged content hashes.
 
 \subsection{Correctness After a Failed Run}
-Each execution creates an \texttt{ingestion\_run} row (mode, start time, status) before any data is written, and closes it with its final status and counts.
-For every source, the data of one batch and the new watermark in \texttt{ingestion\_state} are written in the same database transaction, so the watermark advances only after a successful commit.
-The behavior after a failure is therefore:
+Under the proposed contract, each execution would create an \texttt{ingestion\_run} row (mode, start time, status) before writing data, then close it with its final status and counts.
+For every source, one batch and the new watermark in \texttt{ingestion\_state} would be written in the same database transaction, so the watermark would advance only after a successful commit.
+The proposed behavior after a failure is:
 \begin{itemize}[nosep]
   \item \textbf{Failure before the commit} (network error, timeout or invalid response): the transaction is rolled back, the watermark keeps its previous value, the run is marked as failed, and the next run repeats the same interval.
   \item \textbf{Partially loaded historical load:} batches are committed one partition at a time (one HazEL page, one USGS year), so a failed partition is retried alone while the committed ones are kept; because writes are upserts, repeating a partition creates no duplicates.
   \item \textbf{Failure after downloading:} the raw file is already in the landing zone, so the batch can be reprocessed from it without downloading again.
   \item \textbf{Retries:} each request is retried three times with increasing waits, the team policy of Section~\ref{sec:historical}, before the run is marked as failed.
 \end{itemize}
-The \texttt{-{}-mode status} command reports, for each source, the watermark, the last successful run and the row counts, which is how a stalled source is detected.
+The proposed database-backed \texttt{-{}-mode status} command would report each source's watermark, last successful run and row counts. The Workshop 1 stub currently lists saved raw files only.
 
 \section{Indicator Proposal}
 \label{sec:indicator}
@@ -717,13 +716,13 @@ It is a monitoring aid, \textbf{not a tsunami prediction or warning}; official w
   \item Depth point: 1 if the depth is at most 70~km, since shallow earthquakes are more likely to displace the seafloor.
   \item History point: 1 if at least one probable or definite (validity 3--4) earthquake-caused HazEL tsunami lies within 300~km.
   \item Level: \textbf{LOW} for 0--2 points, \textbf{MODERATE} for 3, \textbf{HIGH} for 4--5. An earthquake deeper than 300~km is at most LOW.
-  \item Official override: a linked CAP bulletin with a severity above \texttt{Minor} (advisory, watch or warning) is shown as \textbf{OFFICIAL ALERT} and is never displayed below HIGH.
+  \item Official override: a linked CAP bulletin with \texttt{severity} of \texttt{Moderate}, \texttt{Severe} or \texttt{Extreme} (the categories above \texttt{Minor}) is shown as \textbf{OFFICIAL ALERT} and is never displayed below HIGH. The product classification (information, advisory, watch or warning) is displayed separately; it is not inferred from CAP \texttt{severity}.
 \end{itemize}
 
-\textbf{Examples from the samples.} The 2011 Tohoku earthquake ($M$ 9.1, 29~km deep, historical tsunamis nearby) scores 5 points and is HIGH.
+\textbf{Examples from the samples.} The 2011 Tohoku earthquake ($M$ 9.1, 29~km deep) scores 5 points and is HIGH. Its history point can be supported without using its own tsunami (HazEL 5413): the saved HazEL records 5412 and 5931 are definite, earthquake-caused tsunamis of 9 March 2011 within 300~km of its epicenter.
 The 25 October 2026 Bonin Islands earthquake ($M$ 6.5, 492~km deep) would score 2 points (it has two 2023 Izu Islands tsunamis within 300~km), but its depth limits it to LOW, consistent with the PTWC information statement (\texttt{Minor} / \texttt{Unlikely}).
 
-\textbf{Validation against historical events.} The indicator will be applied to the 1,930 USGS $M \geq 6$ earthquakes of 2010--2025 (Table~\ref{tab:usgs-counts}), using the confirmed NOAA--USGS links as ground truth and excluding each earthquake's own tsunami from its history point.
+\textbf{Validation against historical events.} The indicator will be applied to the 1,930 USGS $M \geq 6$ earthquakes of 2010--2025 (Table~\ref{tab:usgs-counts}). NOAA--USGS candidate links require review before verified identities can be used as ground truth; each earthquake's own tsunami is excluded from its history point.
 Two measures will be reported: the share of tsunami-associated earthquakes rated MODERATE or HIGH, and the share of earthquakes without a tsunami rated HIGH.
 A sensitivity analysis will vary the magnitude limits by $\pm 0.5$, the depth limit between 50 and 100~km, and the history radius between 200 and 500~km.
 
@@ -731,7 +730,7 @@ A sensitivity analysis will vary the magnitude limits by $\pm 0.5$, the depth li
 
 \section{Architecture Overview}
 Figure~\ref{fig:architecture} adapts the course reference architecture to the four sources; it is exported from the Mermaid source in \path{docs/architecture.md}.
-All components run locally with Docker Compose; the scheduler (proposed: an Apache Airflow DAG) runs \texttt{ingest.py -{}-mode incremental}, and the Plotly Dash dashboard reads only from the database.
+In the proposed architecture, all components run locally with Docker Compose: a scheduler (proposed: an Apache Airflow DAG) calls \texttt{ingest.py -{}-mode incremental}, and the Plotly Dash dashboard reads only from the database. Workshop 1 implements the raw-download stub, not the integrated stack.
 
 \begin{figure}[H]
 \centering
@@ -774,9 +773,9 @@ or \texttt{geometry}; the 25 modified events in the first interval
 include changes to magnitude, depth, or location.
 An absent event was present in the earlier file but not in the later one.
 The feed lists $M \geq 4.5$ events of the past 30 days, so an event can leave it by aging out, by a magnitude revision below 4.5, or by deletion.
-Across the three intervals, 288 events became absent: 282 had origin times older than the 30-day cutoff of the later snapshot, and the other six were looked up in the USGS FDSN catalog.
-None of the six had been deleted; all were still \texttt{reviewed} events whose magnitude had been revised from 4.5--4.6 to 4.4 (\texttt{mb}), below the feed threshold (for example, \texttt{us6000u4kh} near Vanuatu).
-No absence was therefore a deletion, but absence alone does not show which case applies.
+Across the three intervals, 288 events became absent: 282 had origin times older than the 30-day cutoff of the later snapshot, making their absence consistent with aging out of the feed. These 282 were not checked individually in the catalog, so their continued presence cannot be confirmed from the saved evidence. The other six were looked up in the USGS FDSN catalog.
+None of those six had been deleted; all were still \texttt{reviewed} events whose magnitude had been revised from 4.5--4.6 to 4.4 (\texttt{mb}), below the feed threshold (for example, \texttt{us6000u4kh} near Vanuatu).
+An absence alone does not establish whether an event aged out, fell below the magnitude threshold or was deleted.
 The saved catalog responses are in \path{workshop_1/samples/usgs_fdsn_absent_events_20261116.json}.
 The notebook applies the Pacific scope to the latest snapshot rather than to each interval: 492 of the 679 events of 16 November are inside the scope (Section~\ref{sec:hazard}).
 The comparisons and examples are in Section 5 of
@@ -793,10 +792,10 @@ disappear between saved captures.
 \label{sec:profiling}
 
 \subsection{Profiling Summary}
-The saved samples were examined in \path{notebooks/01_source_profiling.ipynb} (Sections 3--7): null percentage, type and range of fields, duplicated identifiers, timestamp formats and time zones, coordinate validity and units.
+The saved samples were examined in \path{notebooks/01_source_profiling.ipynb} (Sections 3--7): missing values, field types and ranges, duplicated identifiers, timestamp formats and time zones, coordinate validity and units. Per-field null percentages are available in the three historical/USGS HTML profiles; the six distinct CAP messages are summarized below.
 Table~\ref{tab:profile} summarizes the result.
 No source has duplicated identifiers inside a snapshot, and no coordinate is outside the WGS84 ranges or at $(0, 0)$; the only invalid locations are 9 HazEL events without coordinates.
-All timestamps are in UTC, but in four different formats: HazEL splits the date into six columns (\texttt{year} to \texttt{second}, with fractional seconds and with \texttt{hour} and \texttt{minute} sometimes missing), the FDSN CSV uses ISO~8601 with \texttt{Z}, the real-time feed uses epoch milliseconds, and tsunami.gov uses ISO~8601 (with \texttt{Z} in the Atom feed and the offset \texttt{-00:00} in CAP).
+USGS and tsunami.gov timestamps are represented in UTC, but in different formats: the FDSN CSV uses ISO~8601 with \texttt{Z}, the real-time feed uses epoch milliseconds, and tsunami.gov uses ISO~8601 (with \texttt{Z} in the Atom feed and the offset \texttt{-00:00} in CAP). HazEL splits dates and times into six columns (\texttt{year} to \texttt{second}, with fractional seconds and sometimes missing clock components) without an explicit time-zone field; the notebook interprets complete times as UTC for comparison, an assumption that still needs source confirmation.
 Depth is given in kilometers by USGS, as an integer without unit by HazEL, and as text with its unit (\texttt{473 kilometers}) by the CAP messages.
 Magnitude comes with its type in USGS (6 types in each sample: \texttt{mww}, \texttt{mwc}, \texttt{mb}, \texttt{mwb}, \texttt{mw}, \texttt{ms} in the catalog; \texttt{mb} for 562 of 679 feed events), without type in HazEL, and as a preliminary value with its type (\texttt{Ml}, \texttt{Mwp}) in tsunami.gov.
 
@@ -807,7 +806,7 @@ Magnitude comes with its type in USGS (6 types in each sample: \texttt{mww}, \te
 \toprule
 Source & Records & Dupl.\ ids & Notes \\
 \midrule
-NOAA HazEL & 221 & 0 & 56 columns; 2010-01-02 to 2025-12-12. Impact fields (deaths, damage, houses) are 63--99.5\% null; \texttt{warningStatusId} 76.5\% null; \texttt{eqMagnitude} and \texttt{eqDepth} 15.8\% null (tsunamis without an earthquake cause); 9 events without coordinates. \\
+NOAA HazEL & 221 & 0 & 57 profiled columns (50 source fields and 7 derived fields); 2010-01-02 to 2025-12-12. Impact fields (deaths, damage, houses) are 63--99.5\% null; \texttt{warningStatusId} 76.5\% null; \texttt{eqMagnitude} and \texttt{eqDepth} 15.8\% null (tsunamis without an earthquake cause); 9 events without coordinates. \\
 USGS FDSN & 343 & 0 & 24 columns; 2010--2011, $M$ 6.0--9.1, depth 2.8--644.6~km. \texttt{magError} 100\% null; \texttt{dmin} and \texttt{horizontalError} 99.4\% null; \texttt{depthError} 80.8\% null. All events \texttt{reviewed}. \\
 USGS real-time & 679 & 0 & 32 columns; origin times 17 October to 15 November 2026, $M$ 4.5--7.0, depth 1--642~km. \texttt{tz} 100\% null; \texttt{alert} 90.1\% null; \texttt{mmi} 88.5\% null; \texttt{felt}, \texttt{cdi} 84.8\% null. All events \texttt{reviewed}; 5 with \texttt{tsunami} = 1. \\
 tsunami.gov & 6 & 0 & Six distinct CAP messages (three per center) in the four snapshots; each feed holds only its latest messages, so the 200-record minimum cannot apply. All six are information statements (\texttt{Tsunami Information}, \texttt{Minor} / \texttt{Unlikely}). \\
@@ -816,6 +815,8 @@ tsunami.gov & 6 & 0 & Six distinct CAP messages (three per center) in the four s
 \caption{Profiling summary of the four samples (16 November snapshot for the USGS real-time feed; distinct messages of the four snapshots for tsunami.gov).}
 \label{tab:profile}
 \end{table}
+
+The six distinct saved CAP messages contain 37 parsed CAP fields. Thirty-two fields have a value in all six messages (0\% missing). Among the remaining fields, \texttt{headline} is empty in three messages (50\%); \texttt{WEAK53} and \texttt{NWSUGC} are absent as XML elements in three each (50\%); \texttt{WECA42} is absent in four (66.7\%); and \texttt{ProductDefinition} is absent in three and present with an empty \texttt{value} element in three (100\% without a value). These percentages use six distinct CAP identifiers, not the eight repeated snapshot observations. An absent element and an empty element are distinguished here; neither is an explicit XML null value. The notebook does not store a complete per-field CAP null-percentage table.
 
 \subsection{Data-Quality Problems}
 Eight problems were identified in the saved samples. The notebook's Section 6 profiles the main quality issues; its Section 7 examines the CAP--USGS date mismatch as a candidate cross-source link. The CAP expiration inconsistency was checked directly against the saved NTWC message.
@@ -940,7 +941,7 @@ HazEL has no update timestamp, so a proposed historical refresh would
 compare records by identifier and content. The ingestion design should
 advance a source watermark only with a successful data commit and use
 idempotent writes so a failed batch can be retried. These failure and
-deduplication rules remain to be specified in Section~\ref{sec:contract}.
+deduplication rules are specified as proposals in Section~\ref{sec:contract}.
 
 \section{Risks and Mitigation}
 \begin{table}[H]
@@ -955,8 +956,8 @@ Rate limits & Blocked or truncated requests (USGS FDSN returns at most 20,000 ev
 Schema change & Parsing failures or silently wrong fields (the two centers already use different CAP parameters, and Marine Regions stores ``Easter'' instead of ``Eastern''). & Validation before loading, \texttt{rejected\_record} with the reason, raw files kept for reprocessing, and tests with recorded fixtures. \\
 License and attribution & Use outside the terms of a source (Marine Regions asks users not to redistribute its files). & Licenses recorded per source; boundaries downloaded by a script instead of committed; credit lines in the report and README. \\
 Ambiguous identifiers & Wrong links between records (two NOAA records have more than one USGS candidate; a PTWC CAP origin date is one day off). & Links stored as \texttt{identity\_candidate} with a review status; no automatic merging; groups only after review. \\
-Record revisions & Outdated values (25 relocations in nine hours; six magnitudes lowered below 4.5). & Watermark on \texttt{updated}, content hash, re-reading the 30-day feed and an FDSN lookup for early absences (Section~\ref{sec:empirical-updates}). \\
-Data volume & Memory exhaustion: the 100~km test on the 85~MB maritime boundaries exhausted a 7~GB laptop when run together with other programs. & Prepared geometries, simplified boundaries for display, and heavy notebook steps run alone. \\
+Record revisions & Outdated values (25 modified events in nine hours, including 21 relocations; six magnitudes lowered below 4.5). & Watermark on \texttt{updated}, content hash, re-reading the 30-day feed and an FDSN lookup for early absences (Section~\ref{sec:empirical-updates}). \\
+Data volume & Memory exhaustion: the 100~km test on the approximately 145~MB local maritime GeoJSON exhausted a 7~GB laptop when run together with other programs. & Prepared geometries, simplified boundaries for display, and heavy notebook steps run alone. \\
 \bottomrule
 \end{tabularx}
 \caption{Risks and mitigation.}
@@ -976,7 +977,7 @@ Data volume & Memory exhaustion: the 100~km test on the 85~MB maritime boundarie
 \end{itemize}
 
 \section{Key Findings}
-Records change after publication: across the three intervals 22 to 121 new and 25 to 123 modified USGS events appeared, the revisions of the first interval arrived between 1 and 29 days after the earthquake, and none of the 288 absences was a deletion (282 aged out of the 30-day window and six were magnitude downgrades below 4.5).
+Records change after publication: across the three intervals 22 to 121 new and 25 to 123 modified USGS events appeared, and the revisions of the first interval arrived between 1 and 29 days after the earthquake. Of 288 absences, 282 are consistent with aging out of the 30-day window but were not individually checked in the catalog; the other six were confirmed there as magnitude downgrades below 4.5, not deletions.
 The tsunami.gov feeds change rarely but contain inconsistencies that must be flagged and preserved, not corrected.
 Cross-source matching works well for NOAA and USGS (28 candidate pairs with median time and distance differences close to zero), but two NOAA records have more than one USGS candidate, so links require review.
 
@@ -1058,12 +1059,12 @@ File \path{noaa_tsunamis_pacific_2010_2025.json}, record of the 2011 Tohoku tsun
 \end{lstlisting}
 
 \section{USGS FDSN -- earthquake catalog}
-File \path{usgs_earthquakes_2010_2011_m6_pacific.csv}, header and the row of the same earthquake:
+File \path{usgs_earthquakes_2010_2011_m6_pacific.csv}, header and a highly compatible earthquake candidate:
 \begin{lstlisting}
 time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
 2011-03-11T05:46:24.120Z,38.297,142.373,29,9.1,mww,541,9.5,,1.16,official,official20110311054624120_30,2026-10-16T10:38:09.160Z,"2011 Great Tohoku Earthquake, Japan",earthquake,,,,,reviewed,us,official
 \end{lstlisting}
-The two records describe the same event: same origin minute, epicenter and magnitude, and the HazEL \texttt{eqDepth} (29) equals the USGS depth in km.
+The two records are a highly compatible candidate match: they have the same origin minute, epicenter and magnitude, and HazEL \texttt{eqDepth} (29) equals the USGS depth in km. The notebook retains this link as a candidate requiring review because other USGS events also satisfy its exploratory time-and-distance rule; identity has not been formally verified.
 
 \section{USGS real-time feed}
 The file \path{usgs_realtime_20261107_050434.geojson} contains feed
@@ -1107,19 +1108,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Raw samples used in this report (already saved in workshop_1/samples/)
-python3 workshop_1/download_historical_samples.py --force
-python3 workshop_1/download_incremental_samples.py
-
-# Marine Regions boundaries for the geographic scope (about 85 MB)
+# Use the existing raw samples in workshop_1/samples/ for the reported figures.
+# Marine Regions boundaries for the geographic scope (about 145 MB)
 python3 workshop_1/download_marine_regions.py
 
-# Ingestion stub: raw landing zone only in Workshop 1
-python3 ingest.py --mode historical --start 2010-01-01 --end 2025-12-31
-python3 ingest.py --mode incremental
-python3 ingest.py --mode status
 \end{lstlisting}
 The profiling notebook \path{notebooks/01_source_profiling.ipynb} is run from the \path{notebooks/} directory with the \texttt{.venv} kernel.
+To collect new samples for later analysis, run \texttt{download\_historical\_samples.py}, \texttt{download\_incremental\_samples.py}, or the Workshop 1 \texttt{ingest.py} raw-download stub separately. New snapshots can change which files the notebook discovers; \texttt{-{}-force} may overwrite existing historical samples and is not a reproduction step for the figures above. The current \texttt{ingest.py -{}-mode status} lists raw files only.
     \end{appendices}
 
 \end{document}

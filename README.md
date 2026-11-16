@@ -68,14 +68,14 @@ In Workshop 1, `ingest.py` is a stub: it downloads the raw responses, with retri
 
 ## Reproduce Workshop 1 profiling
 
-The saved samples are in `workshop_1/samples/`. To download them again:
+The saved samples are in `workshop_1/samples/`; use those files to reproduce the reported results. To collect new samples for later analysis, run the downloaders separately:
 
 ```bash
-python3 workshop_1/download_historical_samples.py --force
+python3 workshop_1/download_historical_samples.py
 python3 workshop_1/download_incremental_samples.py
 ```
 
-The notebook is [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb). Before running it, download the three selected Marine Regions boundaries from the official VLIZ web feature service (about 85 MB; it takes a few minutes):
+New snapshots can change which files the notebook discovers; `--force` can overwrite saved historical samples. The notebook is [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb). Before running it, download the three selected Marine Regions boundaries from the official VLIZ web feature service (the resulting GeoJSON is about 145 MB; it takes a few minutes):
 
 ```bash
 python3 workshop_1/download_marine_regions.py

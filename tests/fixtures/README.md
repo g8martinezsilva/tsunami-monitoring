@@ -9,7 +9,7 @@ Recorded source responses, copied unchanged from `workshop_1/samples/`, so that 
 | `usgs_realtime_20261107_050434.geojson` | USGS real-time | Earlier snapshot for change detection |
 | `usgs_realtime_20261107_140301.geojson` | USGS real-time | Later snapshot: 22 new, 25 modified (21 relocated) and 10 absent events |
 | `usgs_fdsn_absent_events_20261116.json` | USGS FDSN | Catalog lookup of absent events: magnitudes revised from 4.5–4.6 to 4.4, none deleted |
-| `ptwc_20261107_140301.xml`, `ptwc_cap1_20261107_140301.xml` | PTWC | CAP `EventOriginTime` one day earlier than the matching USGS earthquake (`us6000u4r9`) |
+| `ptwc_20261107_140301.xml`, `ptwc_cap1_20261107_140301.xml` | PTWC | CAP `EventOriginTime` one day earlier than the highly compatible USGS candidate (`us6000u4r9`); identity remains unverified |
 | `ntwc_20261116_013756.xml`, `ntwc_cap1_20261116_013756.xml` | NTWC | CAP `expires` 11 hours before `sent` (invalid validity interval) |
 
 The expected results are documented in the Workshop 1 report (Results chapter) and in `notebooks/01_source_profiling.ipynb`.

@@ -121,6 +121,6 @@ The following rules define how data from different sources will be standardized.
 
 6. **Missing values and validation:** Missing information is preserved as `NULL` rather than replaced with invented values. The notebook identifies missing coordinates, incomplete dates, and inconsistent records. During ingestion, required identifiers, data types, and coordinate ranges will be validated. Records that cannot be processed will be stored in `rejected_record` with their rejection reason, while valid but incomplete records may still be accepted.
 
-Source-specific watermarks, overlap windows, failure recovery, and idempotent ingestion will be detailed in the report's Ingestion Contract. The 100 km monitoring margin is a project-defined approximation, not an official maritime boundary.
+Source-specific watermarks, overlap windows, failure recovery, and idempotent ingestion are proposed in the report's Ingestion Contract. The 100 km monitoring margin is a project-defined approximation, not an official maritime boundary.
 
 The corresponding entity–relationship diagram is available in [docs/er_diagram.md](../docs/er_diagram.md).
