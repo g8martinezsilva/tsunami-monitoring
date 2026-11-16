@@ -46,13 +46,12 @@ workshop_1/    Workshop 1 deliverables
 
 ## Reproduce Workshop 1 profiling
 
-The notebook is [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb). Before running it, extract the selected Marine Regions boundaries from the published ZIP:
+The notebook is [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb). Before running it, download the three selected Marine Regions boundaries from the official VLIZ web feature service (about 85 MB; it takes a few minutes):
 
 ```bash
-unzip config/geographic_reference/pacific_maritime_regions.zip \
-  -d config/geographic_reference/
+python3 workshop_1/download_marine_regions.py
 ```
 
-The archive contains `pacific_maritime_regions.geojson` at its root, so this command creates `config/geographic_reference/pacific_maritime_regions.geojson`. The extracted GeoJSON is excluded by `.gitignore`. Run the notebook from the `notebooks/` directory, where its relative paths resolve to the saved samples and geographic file.
+The script creates `config/geographic_reference/pacific_maritime_regions.geojson`, which is excluded by `.gitignore`, so the boundaries are not redistributed in this repository. Use `--force` to download them again. The data are *Global Oceans and Seas v1* (Flanders Marine Institute, 2021, CC BY 4.0); see `config/geographic_reference/LICENSE_GOAS_v1.txt`. Run the notebook from the `notebooks/` directory, where its relative paths resolve to the saved samples and geographic file.
 
 The Workshop 1 canonical mapping and entity–relationship diagram are in [workshop_1/mapping.md](workshop_1/mapping.md) and [docs/er_diagram.md](docs/er_diagram.md).
