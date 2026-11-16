@@ -10,8 +10,6 @@ This is a monitoring and correlation tool. It does not predict tsunamis or repla
 
 **Scope:** The monitoring area uses three Marine Regions Pacific maritime regions, including waters near Alaska and Hawaii, and a project-defined 100 km influence area. Historical samples cover NOAA HazEL tsunamis from 2010–2025 and USGS FDSN earthquakes from 2010–2011 with magnitude ≥ 6. The source queries used NOAA HazEL regions 80–89 and a USGS rectangle spanning latitude −60..65 and longitude 100..300; these query filters are distinct from the geographic classification in the notebook.
 
-Regenerate historical samples with `python3 workshop_1/download_historical_samples.py --force`.
-
 ## Team
 
 - Lina Moreno
@@ -20,28 +18,29 @@ Regenerate historical samples with `python3 workshop_1/download_historical_sampl
 
 ## Data sources
 
-Workshop 1 profiles saved samples from these four source families.
+Workshop 1 profiles saved samples from these four source families. Access, schedules, watermarks and citations for each source are in [config/sources.yaml](config/sources.yaml).
 
-| Type | Source | Format |
-|---|---|---|
-| Historical | [NOAA/NCEI Global Historical Tsunami Database (HazEL API)](https://www.ngdc.noaa.gov/hazel/view/swagger) | JSON |
-| Historical | [USGS earthquake catalog (FDSN)](https://earthquake.usgs.gov/fdsnws/event/1/) | GeoJSON, CSV |
-| Incremental | [USGS real-time earthquake feeds](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php) | GeoJSON |
-| Incremental | [tsunami.gov warning-center feeds](https://www.tsunami.gov/events/xml/PAAQAtom.xml) | Atom, CAP |
+| Type | Source | Format | License / credit |
+|---|---|---|---|
+| Historical | [NOAA/NCEI Global Historical Tsunami Database (HazEL API)](https://www.ngdc.noaa.gov/hazel/view/swagger) | JSON | Public use; cite doi:10.7289/V5PN93H7 |
+| Historical | [USGS earthquake catalog (FDSN)](https://earthquake.usgs.gov/fdsnws/event/1/) | GeoJSON, CSV | U.S. public domain; credit requested |
+| Incremental | [USGS real-time earthquake feeds](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php) | GeoJSON | U.S. public domain; credit requested |
+| Incremental | tsunami.gov warning-center feeds: [NTWC](https://www.tsunami.gov/events/xml/PAAQAtom.xml) and [PTWC](https://www.tsunami.gov/events/xml/PHEBAtom.xml) | Atom, CAP | U.S. Government work, public domain |
+| Geographic reference | [Marine Regions, Global Oceans and Seas v1](https://doi.org/10.14284/542) | GeoJSON (WFS) | CC BY 4.0; not redistributed here |
 
 ## Repository structure
 
 ```text
 src/           Ingestion package (sources, normalization, storage)
 ingest.py      Command-line entry point
-config/        Source configuration (sources.yaml)
+config/        Source configuration (sources.yaml) and geographic reference
 data/raw/      Raw landing zone (git-ignored)
 sql/           Schema definitions
 dashboard/     Plotly Dash application
 tests/         Tests and recorded fixtures
 notebooks/     Source profiling and analysis
-docs/          Project documentation
-workshop_1/    Workshop 1 deliverables
+docs/          Project documentation (diagrams, source-status log)
+workshop_1/    Workshop 1 deliverables (report, mapping, samples, download scripts)
 ```
 
 ## Setup
@@ -52,9 +51,29 @@ Python 3.12 to 3.14. From the repository root:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
 ```
 
+Edit `.env` with your own values; it is git-ignored and must never be committed.
+
+## Ingestion
+
+```bash
+python3 ingest.py --mode historical [--start 2010-01-01 --end 2025-12-31]
+python3 ingest.py --mode incremental
+python3 ingest.py --mode status
+```
+
+In Workshop 1, `ingest.py` is a stub: it downloads the raw responses, with retries, into `data/raw/` as `source_YYYYMMDD_HHMMSS.ext`, and `--mode status` lists the saved files. Parsing, validation and the database load are added in Workshops 2 and 3.
+
 ## Reproduce Workshop 1 profiling
+
+The saved samples are in `workshop_1/samples/`. To download them again:
+
+```bash
+python3 workshop_1/download_historical_samples.py --force
+python3 workshop_1/download_incremental_samples.py
+```
 
 The notebook is [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb). Before running it, download the three selected Marine Regions boundaries from the official VLIZ web feature service (about 85 MB; it takes a few minutes):
 
@@ -62,6 +81,15 @@ The notebook is [notebooks/01_source_profiling.ipynb](notebooks/01_source_profil
 python3 workshop_1/download_marine_regions.py
 ```
 
-The script creates `config/geographic_reference/pacific_maritime_regions.geojson`, which is excluded by `.gitignore`, so the boundaries are not redistributed in this repository. Use `--force` to download them again. The data are *Global Oceans and Seas v1* (Flanders Marine Institute, 2021, CC BY 4.0); see `config/geographic_reference/LICENSE_GOAS_v1.txt`. Run the notebook from the `notebooks/` directory, where its relative paths resolve to the saved samples and geographic file.
+The script creates `config/geographic_reference/pacific_maritime_regions.geojson`, which is excluded by `.gitignore`, so the boundaries are not redistributed in this repository. Use `--force` to download them again. The data are *Global Oceans and Seas v1* (Flanders Marine Institute, 2021, CC BY 4.0); see `config/geographic_reference/LICENSE_GOAS_v1.txt`. Run the notebook from the `notebooks/` directory, where its relative paths resolve to the saved samples and geographic file. The geographic section needs several GB of memory, so close other heavy programs before running it.
 
-The Workshop 1 canonical mapping and entity–relationship diagram are in [workshop_1/mapping.md](workshop_1/mapping.md) and [docs/er_diagram.md](docs/er_diagram.md).
+## Workshop 1 deliverables
+
+- Report: [workshop_1/report/main.pdf](workshop_1/report/main.pdf) (LaTeX source `main.tex`)
+- Source profiling notebook: [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb)
+- Raw samples: [workshop_1/samples/](workshop_1/samples/)
+- Canonical mapping: [workshop_1/mapping.md](workshop_1/mapping.md)
+- Entity–relationship diagram: [docs/er_diagram.md](docs/er_diagram.md)
+- Architecture diagram: [docs/architecture.md](docs/architecture.md)
+- Source-status log: [docs/source_status_log.md](docs/source_status_log.md)
+- Recorded test fixtures: [tests/fixtures/](tests/fixtures/)

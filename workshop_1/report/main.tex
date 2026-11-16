@@ -1,81 +1,227 @@
-\documentclass[11pt,a4paper]{article}
+%% Report layout adapted from the Computer Science report template
+%% (Dr Todd R. Jones, University of Reading, based on a template by Dr Varun Ojha),
+%% as required by the course. The template's CS_report.sty settings are included
+%% below so that the whole report lives in this file.
+\documentclass[a4paper,11pt,oneside]{book}
 
+%% ----- Template settings (CS_report.sty) -----
+\usepackage[margin=1.2in]{geometry}
+
+% Sans-serif font
 \usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
 \usepackage{lmodern}
-\usepackage[english]{babel}
-\usepackage[margin=2.5cm]{geometry}
-\usepackage{booktabs}
-\usepackage{tabularx}
-\usepackage{graphicx}
-\usepackage{float}
-\usepackage{enumitem}
-\usepackage{xcolor}
-\usepackage{listings}
-\usepackage{rotating}
-\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue]{hyperref}
+\renewcommand*\familydefault{\sfdefault}
+\usepackage{slantsc}
+\usepackage{relsize}
+\usefont{T1}{lmss}{m}{n}\selectfont
+\DeclareFontShape{T1}{lmss}{m}{sc}{<->ssub*lmss/m/n}{}
 
+% Math
+\usepackage{sansmath}
+\sansmath
+\usepackage[cmex10]{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+% Code listings
+\usepackage[utf8]{inputenc}
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{codegreen}{rgb}{0,0.6,0.1}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codeblue}{rgb}{0.10,0.00,1.00}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{1.0,1.0,1.0}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codeblue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    frame=none
+}
+\lstset{style=mystyle}
+
+% Figures and tables
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{multirow}
+\usepackage{rotating}
+\usepackage{makecell}
+\usepackage{booktabs}
+
+% List of abbreviations
+\usepackage{enumitem}
+\newlist{abbrv}{itemize}{1}
+\setlist[abbrv,1]{label=,labelwidth=1in,align=parleft,itemsep=0.1\baselineskip,leftmargin=!}
+
+% Links and references
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink]{cleveref}
+\definecolor{DarkBlue}{rgb}{0.00,0.00,0.50}
+\hypersetup{colorlinks=true,
+            linkcolor=blue,
+            filecolor=magenta,
+            urlcolor=cyan,
+            citecolor=DarkBlue,
+            pdftitle={Tsunami Monitoring System -- Workshop 1},
+            }
+
+% Bibliography: the template's numbered style (natbib numbers)
+\usepackage[numbers]{natbib}
+\usepackage[nottoc]{tocbibind}
+\renewcommand{\bibname}{References}
+
+% Appendices
+\usepackage[toc]{appendix}
+
+%% ----- Additions for this report -----
+\usepackage{tabularx}
+\usepackage{float}
 \renewcommand{\arraystretch}{1.25}
+% Long file names and code words: allow looser lines and breaks in paths at _ and .
+\setlength{\emergencystretch}{3em}
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks\do\_\do\.}
 
 % Red reminder. Search for "TODO" before submitting.
 \providecommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 
-\lstset{
-  basicstyle=\ttfamily\footnotesize,
-  breaklines=true,
-  frame=single,
-  columns=fullflexible
-}
-
 \begin{document}
 
-% ------------------------------------------------------------------
-% TITLE PAGE
-% ------------------------------------------------------------------
-\begin{titlepage}
-  \centering
-  {\large Universidad Distrital Francisco Jos\'e de Caldas\\
-  School of Engineering -- Computer Engineering Program\par}
-  \vspace{1.5cm}
-  {\Large Data Analysis Programming -- Semester 2026-II\par}
-  \vspace{1cm}
-  {\LARGE\bfseries Workshop No.\ 1\\[0.3cm]
-  Hazard Definition, Source Validation,\\and Data Contract\par}
-  \vspace{1.5cm}
-  {\Large Team 8 -- Tsunami Monitoring\par}
-  \vspace{1cm}
-  \begin{tabular}{ll}
-    Lina Moreno & 20231020133 \\
-    Jaider \'Avila & 20231020200 \\
-    Gabriela Mart\'inez & 20231020205 \\
-  \end{tabular}
-  \vspace{1.5cm}
+    \captionsetup[figure]{margin=1.5cm,font=small,name={Figure},labelsep=colon}
+    \captionsetup[table]{margin=1.5cm,font=small,name={Table},labelsep=colon}
 
-  Professor: Eng.\ Carlos Andr\'es Sierra, M.Sc.\par
-  \vspace{0.5cm}
-  Repository: \url{https://github.com/g8martinezsilva/tsunami-monitoring}\par
-  \vfill
-  \today
-\end{titlepage}
+    \frontmatter
 
-\tableofcontents
-\clearpage
+    % -------------------------------------------------------------------
+    % Title page
+    % -------------------------------------------------------------------
+    \begin{titlepage}
+        \begin{center}
+            \includegraphics[width=3cm]{figures/ud.png}\\[0.5cm]
+            {\LARGE Universidad Distrital Francisco Jos\'e de Caldas\\[0.5cm]
+            School of Engineering -- Computer Engineering Program}\\[2cm]
 
-% One file per section, so that each person edits a different file.
+            \linespread{1.2}\huge {
+                Tsunami Monitoring System\\[0.3cm]
+                \Large Workshop No.\ 1: Hazard Definition, Source Validation, and Data Contract
+            }
+            \linespread{1}~\\[2cm]
 
-% ===== 00_summary.tex =====
-% Owner: TBD
-\section*{Executive Summary}
-\todo{Five to eight lines: hazard, scope, the four sources, main findings of the profiling, and the proposed indicator.}
+            {\Large Team 8}\\[0.5cm]
+            {\large
+            \begin{tabular}{ll}
+                Lina Moreno & 20231020133 \\
+                Jaider \'Avila & 20231020200 \\
+                Gabriela Mart\'inez & 20231020205 \\
+            \end{tabular}}\\[1cm]
 
+            {\large \emph{Professor:} Eng.\ Carlos Andr\'es Sierra, M.Sc.}\\[1cm]
 
+            \large A report submitted for Workshop No.\ 1 of the course\\
+            \textit{Data Analysis Programming}, Semester 2026-II\\[0.3cm]
+            \normalsize Repository: \url{https://github.com/g8martinezsilva/tsunami-monitoring}
+            \vfill
 
-% ===== 01_hazard.tex =====
-% Owner: TBD
+            \today
+        \end{center}
+    \end{titlepage}
+
+    % -------------------------------------------------------------------
+    % Declaration
+    % -------------------------------------------------------------------
+    \newpage
+    \thispagestyle{empty}
+    \chapter*{\Large Declaration}
+    We, Lina Moreno, Jaider \'Avila and Gabriela Mart\'inez, of the Computer Engineering Program, Universidad Distrital Francisco Jos\'e de Caldas, confirm that this is our own work and that figures, tables, equations, code snippets and illustrations in this report are original and have not been taken from any other person's work, except where the works of others have been explicitly acknowledged, quoted, and referenced. Data from external sources are cited with their licenses.
+    ~\\[1cm]
+    \begin{flushright}
+    Lina Moreno\\
+    Jaider \'Avila\\
+    Gabriela Mart\'inez
+
+    \today
+    \end{flushright}
+
+    % -------------------------------------------------------------------
+    % Abstract
+    % -------------------------------------------------------------------
+    \chapter*{Abstract}
+    \addcontentsline{toc}{chapter}{Abstract}
+    This report defines the Workshop~1 foundation of a monitoring system for tsunami-relevant earthquakes in the Pacific basin.
+The scope combines three Marine Regions maritime regions with a 100~km margin, the period 2010--2025, and earthquakes of magnitude 6 or more for historical analysis.
+Four free sources were validated with real samples: the NOAA/NCEI HazEL historical tsunami database (221 events), the USGS FDSN earthquake catalog (343 events in the 2010--2011 sample), the USGS real-time feed (four snapshots) and the NTWC/PTWC tsunami.gov bulletins.
+Profiling showed four timestamp formats, magnitude types that differ across sources, frequent and late revisions of earthquake records (up to 29 days after the event), an origin date one day off in a PTWC bulletin, and a bulletin that expires before it was sent.
+The sources are mapped to a canonical event model with domain tables, and an ingestion contract defines partitioning, watermarks and duplicate keys per source.
+Finally, a Tsunami Relevance Level indicator (LOW, MODERATE, HIGH) is proposed as a monitoring aid, not as a tsunami prediction.
+
+    % -------------------------------------------------------------------
+    % Contents, list of figures, list of tables, abbreviations
+    % -------------------------------------------------------------------
+    \tableofcontents
+    \listoffigures
+    \listoftables
+
+    \chapter*{List of Abbreviations}
+    \chaptermark{List of Abbreviations}
+    \begin{abbrv}
+        \item[CAP]      Common Alerting Protocol
+        \item[CRS]      Coordinate Reference System
+        \item[FDSN]     International Federation of Digital Seismograph Networks
+        \item[GOAS]     Global Oceans and Seas (Marine Regions dataset)
+        \item[HazEL]    NCEI Hazard Event Database (Global Historical Tsunami Database interface)
+        \item[NCEI]     NOAA National Centers for Environmental Information
+        \item[NOAA]     National Oceanic and Atmospheric Administration
+        \item[NTWC]     National Tsunami Warning Center (Palmer, Alaska)
+        \item[NWS]      National Weather Service
+        \item[PTWC]     Pacific Tsunami Warning Center (Honolulu, Hawaii)
+        \item[TRL]      Tsunami Relevance Level (indicator proposed in this report)
+        \item[USGS]     United States Geological Survey
+        \item[UTC]      Coordinated Universal Time
+        \item[VLIZ]     Flanders Marine Institute
+        \item[WFS]      Web Feature Service
+        \item[WGS84]    World Geodetic System 1984
+    \end{abbrv}
+
+    % -------------------------------------------------------------------
+    % Main chapters
+    % -------------------------------------------------------------------
+    \mainmatter
+
+\chapter{Introduction}
+\label{ch:introduction}
+
+\section{Project Overview}
+\textbf{Title.} Tsunami Monitoring System: Pacific earthquakes in the context of historical tsunamis and official bulletins.
+
+\textbf{Motivation.} Large Pacific earthquakes are reported within minutes, but judging whether one deserves attention requires combining several sources that use different formats, identifiers, times and magnitude types (Sections~\ref{sec:historical}--\ref{sec:profiling}).
+
+\textbf{Goal.} From a data-engineering perspective, the goal is a reproducible pipeline that loads two historical and two incremental sources into one canonical model, with idempotent incremental updates, validation and quarantine (Sections~\ref{sec:mapping} and~\ref{sec:contract}).
+From an analytical perspective, the goal is to show what is happening now in the Pacific, compare it with the 2010--2025 record, and summarize each significant earthquake with a tsunami-relevance indicator (Section~\ref{sec:indicator}).
+
+\textbf{Scope.} Pacific maritime regions plus a 100~km margin (Section~\ref{sec:hazard}); historical period 2010--2025; earthquakes with $M \geq 4.5$ for the recent-events view and $M \geq 6$ for statistics and the indicator; official bulletins from NTWC and PTWC.
+
+\textbf{Explicit exclusions.} The system does not predict tsunamis, issue warnings, model wave propagation or inundation, or replace the warning centers.
+It does not load run-up observations (Section~\ref{sec:historical}), river and lake tsunamis outside the maritime scope, or Colombian national sources, which would first need demonstrated programmatic access.
+
+\textbf{Constraints.} Only free sources are used, within their rate limits and licenses; tsunami.gov keeps only its latest messages; preliminary magnitudes and locations are revised for weeks (Section~\ref{sec:empirical-updates}); and the whole system must run locally with Docker Compose on the team's laptops.
+
 \section{Hazard Definition}
 \label{sec:hazard}
 
 \subsection{Phenomenon and Severity Measure}
+\label{sec:severity}
 A tsunami is a series of long ocean waves generated by the sudden displacement of a large volume of water.
 Most tsunamis are caused by large undersea earthquakes, but landslides, volcanic eruptions and meteorological events can also generate them.
 In our HazEL sample, 36 of 221 events (16\%) have a non-earthquake cause (landslide 17, meteorological 9, volcano 6, unknown 2, among others).
@@ -242,9 +388,42 @@ For this system the current situation comprises:
 $M \geq 4.5$ is the minimum magnitude of the USGS ``past month'' feed that we use, and these earthquakes feed the recent-events list of the dashboard.
 In contrast, the statistics, the comparison with the historical record and the indicator use only earthquakes with $M \geq 6$, the threshold of the historical catalog, so that both sides of the comparison follow the same criterion and small earthquakes today do not look unusual only because the history does not contain them.
 
+\section{Functional User}
+The functional user is a \textbf{monitoring analyst in a coastal emergency-management office} facing the Pacific (for example, an analyst supporting the Colombian Pacific coast).
+The analyst is familiar with earthquake magnitude and depth but is not a seismologist, and works from a desktop browser during the day and when a large earthquake is reported.
 
-% ===== 02_historical.tex =====
-% Owner: TBD
+\textbf{Decisions supported.} Which recent earthquakes deserve attention; whether an official tsunami bulletin exists for an earthquake and what it says; whether an earthquake is unusual compared with the historical record of its region; and whether the data on screen are fresh and complete enough to brief others.
+
+\textbf{Why the dashboard helps.} Today this requires visiting the USGS map, the tsunami.gov feeds and the NOAA database separately and matching records by hand.
+The dashboard brings them together on one map with a common time base, the historical context and an explicit data-health panel.
+Official decisions remain with the warning centers and national authorities; the dashboard is a monitoring and correlation aid.
+
+\section{User Stories}
+Priorities follow MoSCoW (Must, Should, Could, Won't).
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}cl>{\raggedright\arraybackslash}Xc@{}}
+\toprule
+ID & Type & Story & MoSCoW \\
+\midrule
+US1 & Monitoring & As a monitoring analyst, I want to see on a map the earthquakes with $M \geq 4.5$ in the Pacific scope from the last 24 hours and 7 days, so that I know what is new. & Must \\
+US2 & Monitoring & As a monitoring analyst, I want to see the latest NTWC and PTWC bulletin next to the earthquake it refers to, so that the official assessment is always visible. & Must \\
+US3 & Analysis & As a monitoring analyst, I want to compare a new $M \geq 6$ earthquake with the historical earthquakes and tsunamis of the same region, so that I can tell whether it is unusual. & Must \\
+US4 & Analysis & As a monitoring analyst, I want each $M \geq 6$ earthquake to show its tsunami-relevance level and the inputs behind it, so that I can prioritize attention and explain the level. & Should \\
+US5 & Trust & As a monitoring analyst, I want to see the last successful run and the watermark age of every source, so that I know how fresh the data are. & Must \\
+US6 & Trust & As a monitoring analyst, I want to see rejected records and data-quality flags (for example, an inconsistent CAP time), so that I know how complete and reliable the data are. & Should \\
+\bottomrule
+\end{tabularx}
+\caption{User stories.}
+\label{tab:stories}
+\end{table}
+
+\chapter{Data Sources}
+\label{ch:sources}
+This chapter documents the two historical and the two incremental sources: owner, access, limits, license, fields, coverage and update behavior.
+
 \section{Historical Sources}
 \label{sec:historical}
 
@@ -399,7 +578,172 @@ Change detection & Compare the entry \texttt{id}, CAP \texttt{identifier}, and p
 \bottomrule
 \end{tabularx}
 
-\subsection{Empirical Update Behavior}
+\chapter{Methodology}
+\label{ch:methodology}
+
+\section{Canonical Mapping}
+\label{sec:mapping}
+
+This section summarizes the canonical model specified in \path{workshop_1/mapping.md}; the full field definitions and validation rules are kept there, and the entity--relationship diagram source is \path{docs/er_diagram.md}.
+
+\subsection{Field Mapping to the Canonical \texttt{event}}
+An \texttt{event} row is one normalized observation from one source.
+Five controlled source identifiers are used: \texttt{noaa\_hazel}, \texttt{usgs\_fdsn}, \texttt{usgs\_realtime}, \texttt{ntwc} and \texttt{ptwc}.
+Table~\ref{tab:mapping} maps the eight required fields.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.7cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Canonical field & NOAA HazEL & USGS FDSN / real-time & tsunami.gov (Atom + CAP) & Rule \\
+\midrule
+\texttt{event\_id} & Generated; HazEL \texttt{id} kept as \texttt{external\_id} & Generated; CSV \texttt{id} / feature \texttt{id} kept as \texttt{external\_id} & Generated; CAP \texttt{identifier} kept as \texttt{external\_id} (Atom entry \texttt{id} stored separately) & Opaque key independent of source IDs; \texttt{UNIQUE(source,\allowbreak{} external\_id)} \\
+\texttt{source} & \texttt{noaa\_hazel} & \texttt{usgs\_fdsn} / \texttt{usgs\_realtime} & \texttt{ntwc} / \texttt{ptwc}, from the feed & Controlled value, FK to \texttt{source}; CAP \texttt{sender} does not define it \\
+\texttt{event\_type} & \texttt{tsunami} & \texttt{earthquake} & \texttt{bulletin} & A bulletin is not evidence that a tsunami occurred \\
+\texttt{timestamp} (UTC) & \texttt{year}--\texttt{second} columns; null when the clock is incomplete & \texttt{time} (ISO 8601) / \texttt{properties.\allowbreak time} (epoch ms) & CAP \texttt{sent} (issue time) & UTC; a date-only record keeps \texttt{event\_date} and \texttt{time\_precision}, never a made-up midnight \\
+\texttt{latitude} & \texttt{latitude} & \texttt{latitude} / \texttt{geometry.\allowbreak coordinates[1]} & \texttt{EventLatLon} (first value); Atom \texttt{geo:lat} as fallback & WGS84 decimal degrees; nulls preserved \\
+\texttt{longitude} & \texttt{longitude} & \texttt{longitude} / \texttt{geometry.\allowbreak coordinates[0]} & \texttt{EventLatLon} (second value); Atom \texttt{geo:long} as fallback & WGS84, normalized to $-180$ to $180$; raw value kept \\
+\texttt{severity} & \texttt{maxWaterHeight} (not \texttt{eqMagnitude}) & \texttt{mag} & CAP \texttt{severity} category & Stored with \texttt{severity\_scale} and \texttt{severity\_unit}; values of different scales are never compared \\
+\texttt{raw\_\allowbreak reference} & JSON file and item \texttt{id} & CSV file and row \texttt{id} / GeoJSON snapshot and feature \texttt{id} & CAP file and identifier, with Atom file and entry & External ID, saved file path, record locator, original URL and content hash \\
+\bottomrule
+\end{tabularx}
+\caption{Mapping of the source fields to the canonical \texttt{event}.}
+\label{tab:mapping}
+\end{table}
+
+Besides the required fields, \texttt{event} also stores \texttt{external\_id}, \texttt{event\_date}, \texttt{known\_hour} and \texttt{known\_minute} (for partial NOAA times), \texttt{time\_precision}, \texttt{severity\_scale}, \texttt{severity\_unit}, an optional \texttt{event\_group\_id}, and the derived flags \texttt{in\_pacific\_ocean} and \texttt{in\_pacific\_scope} (Section~\ref{sec:hazard}).
+
+\subsection{Domain Tables}
+Each \texttt{event} has exactly one detail row in the domain table that matches its \texttt{event\_type}; the detail row uses \texttt{event\_id} as both primary and foreign key (Table~\ref{tab:domain}).
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.4cm}@{}}
+\toprule
+Table & Main fields (source) & Important distinction \\
+\midrule
+\texttt{earthquake} & \texttt{magnitude} and \texttt{magnitude\_type} (\texttt{mag}, \texttt{magType}), \texttt{depth\_km} (FDSN \texttt{depth} or GeoJSON coordinate 3), \texttt{place}, \texttt{status}, \texttt{source\_updated\_\allowbreak at} (\texttt{updated}), \texttt{tsunami\_bulletin\_\allowbreak flag} (real-time \texttt{tsunami}) & The flag only indicates bulletin-related information; \texttt{updated} is not the origin time. \\
+\texttt{tsunami\_event} & \texttt{causeCode}, \texttt{eventValidity}, \texttt{regionCode}, \texttt{warningStatusId} (nullable FKs to the NOAA catalogs), \texttt{earthquakeEventId}, \texttt{eqMagnitude}, \texttt{eqDepth}, \texttt{maxWaterHeight}, \texttt{numRunups}, \texttt{country}, \texttt{locationName} & The causative earthquake's magnitude and depth are not tsunami severity; \texttt{numRunups} is a count, not a height; the NOAA earthquake ID is not a USGS key. \\
+\texttt{tsunami\_bulletin} & Center, CAP \texttt{identifier}, \texttt{sender}, \texttt{sent}, \texttt{msgType}, \texttt{event}, \texttt{severity}, \texttt{urgency}, \texttt{certainty}, \texttt{expires}, preliminary magnitude and type, depth text, reported origin time and location; Atom entry \texttt{id}, \texttt{updated} and CAP link & \texttt{sent} is the issue time and \texttt{EventOriginTime} the reported earthquake origin; depth is parsed to km only when the unit is explicit. \\
+\bottomrule
+\end{tabularx}
+\caption{Hazard-specific domain tables.}
+\label{tab:domain}
+\end{table}
+
+Four NOAA descriptor catalogs (\texttt{noaa\_cause}, \texttt{noaa\_event\_validity}, \texttt{noaa\_region} and \texttt{noaa\_warning\_status}) store the saved code tables as integer \texttt{code} and text \texttt{description}; missing codes stay null instead of receiving an invented ``unknown'' code.
+
+\paragraph{Event identity and links.}
+Observations of the same phenomenon from different sources are not merged into one row.
+After review, observations of the same type (for example, an FDSN and a real-time record of one earthquake) join the same \texttt{event\_group}, which needs at least two members.
+Links between different types are stored in \texttt{event\_relation}: \texttt{identity\_candidate} (a possible match awaiting review), \texttt{caused\_by} (tsunami to earthquake) and \texttt{reports\_on} (bulletin to earthquake or tsunami), each with a \texttt{pending}, \texttt{accepted} or \texttt{rejected} status and an evidence reference.
+Time and distance alone never confirm identity, and a non-seismic tsunami needs no earthquake link.
+
+\subsection{Unit Conversions and Rules}
+\begin{itemize}[nosep]
+  \item \textbf{Time:} all timestamps are converted to UTC and kept as distinct fields: USGS origin and update times (epoch milliseconds in the feed), CAP \texttt{sent}, \texttt{expires} and reported origin, and Atom \texttt{updated}. A NOAA record without seconds keeps its date and known clock components with a \texttt{time\_precision}. Inconsistent source times, such as the PTWC origin date (problem 6) or the NTWC \texttt{expires} before \texttt{sent} (problem 8), are flagged and preserved, never silently corrected.
+  \item \textbf{Coordinates:} WGS84 (EPSG:4326) decimal degrees; the canonical longitude is normalized to $-180$ to $180$ while the raw value is kept. GeoJSON order is longitude, latitude, depth. Spatial tests across the antimeridian are handled separately.
+  \item \textbf{Scope flags:} \texttt{in\_pacific\_ocean} and \texttt{in\_pacific\_scope} follow the Marine Regions selection and the 100~km margin of Section~\ref{sec:hazard}; events without valid coordinates are counted separately.
+  \item \textbf{Depth and heights:} USGS depth and NOAA \texttt{eqDepth} are in kilometers, and NOAA \texttt{maxWaterHeight} is in meters, as documented in the HazEL search forms (Section~\ref{sec:severity}). CAP depth text is parsed to km only when the unit is explicit.
+  \item \textbf{Magnitude and severity:} magnitude is always stored with its type (\texttt{mww}, \texttt{mb}, \texttt{Ml}, \texttt{Mwp}, \ldots). Earthquake magnitude, tsunami water height and CAP severity are three different scales recorded in \texttt{severity\_scale}; they are never compared or aggregated. The USGS \texttt{tsunami} flag, NOAA \texttt{warningStatusId} and CAP severity are not interchangeable and none of them proves that a tsunami occurred.
+  \item \textbf{Missing values and validation:} missing information stays \texttt{NULL} and is never replaced by invented values. During ingestion, required identifiers, data types and coordinate ranges are validated, and records that cannot be processed go to \texttt{rejected\_record} with the reason.
+  \item \textbf{Identifiers and revisions:} source IDs are kept as text; \texttt{UNIQUE(source, external\_id)} identifies the current observation, and a content hash detects real changes. Earlier versions remain traceable through the saved raw files. A new CAP identifier is a new bulletin, not a revision of an earlier one.
+  \item \textbf{Cross-source matching:} the exploratory rule of Section~\ref{sec:overlap} (15 minutes for exact NOAA times, at most 100~km between epicenters, and a magnitude difference of at most 0.5 where required) only proposes \texttt{identity\_candidate} links. The 100~km matching tolerance is independent of the 100~km monitoring margin. Ambiguous candidates, such as the two NOAA records with more than one eligible USGS event, stay pending until reviewed.
+\end{itemize}
+
+\subsection{Draft ER Diagram}
+Figure~\ref{fig:er} shows the complete model, exported from the Mermaid source in \path{docs/er_diagram.md} so that the report and the repository share one diagram.
+Exactly one domain row matches each \texttt{event\_type}, and an \texttt{event\_group} has at least two members; Mermaid cannot draw these two constraints, so they are business rules.
+
+\begin{sidewaysfigure}
+\centering
+\includegraphics[width=\textheight,height=0.95\textwidth,keepaspectratio]{figures/er_diagram.png}
+\caption{Draft entity--relationship diagram (source: \texttt{docs/er\_diagram.md}).}
+\label{fig:er}
+\end{sidewaysfigure}
+
+\section{Ingestion Contract Draft}
+\label{sec:contract}
+
+This section turns the findings of Sections~\ref{sec:historical} and~\ref{sec:incremental} into a per-source contract for \texttt{python ingest.py -{}-mode historical} and \texttt{-{}-mode incremental}.
+The rules are proposals for Workshops~2 and~3; they have not been implemented yet.
+The duplicate keys follow the canonical model of Section~\ref{sec:mapping}: \texttt{UNIQUE(source, external\_id)}, where \texttt{source} is one of the five controlled source identifiers.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.6cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}p{2.4cm}@{}}
+\toprule
+Source & Historical strategy & Incremental strategy & Duplicate key & Overlap window \\
+\midrule
+NOAA HazEL & Query 2010--2025, regions 80--89; iterate \texttt{page} = 1 to \texttt{totalPages} (200 records per page); check that the record count equals \texttt{totalItems} and that no \texttt{id} repeats. & Not an incremental source: records have no update timestamp, so a historical re-run downloads the in-scope records again and compares them by content hash. & (\texttt{noaa\_hazel}, \texttt{id}) & Not needed: every refresh reads the full period. \\
+USGS FDSN & One calendar year per request, 2010--2025 (16 requests), $M \geq 6$ in the broad Pacific rectangle; compare each year with the \texttt{count} method; then apply the maritime-scope filter. & Reconciliation query with \texttt{updatedafter}, to catch revisions made after an event has left the real-time feed; watermark: largest stored \texttt{updated}. & (\texttt{usgs\_fdsn}, \texttt{id}) & Query from the watermark minus an overlap (one day proposed), so that late or delayed revisions are not missed. \\
+USGS real-time feed & -- & Poll the 4.5+ past-month feed at most once per minute; process an event only when its \texttt{id} is new or its \texttt{updated} is greater than the stored value; compare \texttt{properties} and \texttt{geometry}. & (\texttt{usgs\_realtime}, \texttt{id}) & The whole 30-day file is read on every poll, so recent revisions are always seen again. \\
+tsunami.gov (NTWC, PTWC) & -- & Poll each Atom feed every 5 minutes; a CAP \texttt{identifier} not yet stored is a new bulletin, whose CAP message is then downloaded; watermark: latest CAP \texttt{sent} per center. & (\texttt{ntwc} or \texttt{ptwc}, CAP \texttt{identifier}) & All entries present in the feed are re-checked on every poll; bulletins published and removed between two polls cannot be recovered. \\
+\bottomrule
+\end{tabularx}
+\caption{Ingestion contract per source.}
+\label{tab:contract}
+\end{table}
+
+Every downloaded response is first saved unchanged in the raw landing zone (\path{data/raw/}) with the name \path{source_YYYYMMDD_HHMMSS.ext}, before any parsing.
+Records that fail validation (for example, invalid coordinates or an unparseable time) go to \texttt{rejected\_record} with the run identifier and the reason, and never stop the rest of the batch.
+Both incremental modes are idempotent: running them twice in a row stores no duplicate rows, because writes are upserts on the duplicate key and a record whose content hash has not changed is skipped.
+
+\subsection{Correctness After a Failed Run}
+Each execution creates an \texttt{ingestion\_run} row (mode, start time, status) before any data is written, and closes it with its final status and counts.
+For every source, the data of one batch and the new watermark in \texttt{ingestion\_state} are written in the same database transaction, so the watermark advances only after a successful commit.
+The behavior after a failure is therefore:
+\begin{itemize}[nosep]
+  \item \textbf{Failure before the commit} (network error, timeout or invalid response): the transaction is rolled back, the watermark keeps its previous value, the run is marked as failed, and the next run repeats the same interval.
+  \item \textbf{Partially loaded historical load:} batches are committed one partition at a time (one HazEL page, one USGS year), so a failed partition is retried alone while the committed ones are kept; because writes are upserts, repeating a partition creates no duplicates.
+  \item \textbf{Failure after downloading:} the raw file is already in the landing zone, so the batch can be reprocessed from it without downloading again.
+  \item \textbf{Retries:} each request is retried three times with increasing waits, the team policy of Section~\ref{sec:historical}, before the run is marked as failed.
+\end{itemize}
+The \texttt{-{}-mode status} command reports, for each source, the watermark, the last successful run and the row counts, which is how a stalled source is detected.
+
+\section{Indicator Proposal}
+\label{sec:indicator}
+The \textbf{Tsunami Relevance Level} (TRL) summarizes how much attention a recent earthquake deserves from a tsunami-monitoring perspective.
+It is a monitoring aid, \textbf{not a tsunami prediction or warning}; official warnings come only from the tsunami warning centers.
+
+\textbf{Inputs.} For each earthquake with $M \geq 6$ inside the Pacific scope: magnitude (moment magnitude preferred), focal depth, historical tsunami association, and the official bulletin linked to it, if any.
+
+\textbf{Rule (all thresholds are parameters in the configuration).}
+\begin{itemize}[nosep]
+  \item Magnitude points: 1 for $6.0 \leq M < 7.0$, 2 for $7.0 \leq M < 8.0$, 3 for $M \geq 8.0$.
+  \item Depth point: 1 if the depth is at most 70~km, since shallow earthquakes are more likely to displace the seafloor.
+  \item History point: 1 if at least one probable or definite (validity 3--4) earthquake-caused HazEL tsunami lies within 300~km.
+  \item Level: \textbf{LOW} for 0--2 points, \textbf{MODERATE} for 3, \textbf{HIGH} for 4--5. An earthquake deeper than 300~km is at most LOW.
+  \item Official override: a linked CAP bulletin with a severity above \texttt{Minor} (advisory, watch or warning) is shown as \textbf{OFFICIAL ALERT} and is never displayed below HIGH.
+\end{itemize}
+
+\textbf{Examples from the samples.} The 2011 Tohoku earthquake ($M$ 9.1, 29~km deep, historical tsunamis nearby) scores 5 points and is HIGH.
+The 25 October 2026 Bonin Islands earthquake ($M$ 6.5, 492~km deep) would score 2 points (it has two 2023 Izu Islands tsunamis within 300~km), but its depth limits it to LOW, consistent with the PTWC information statement (\texttt{Minor} / \texttt{Unlikely}).
+
+\textbf{Validation against historical events.} The indicator will be applied to the 1,930 USGS $M \geq 6$ earthquakes of 2010--2025 (Table~\ref{tab:usgs-counts}), using the confirmed NOAA--USGS links as ground truth and excluding each earthquake's own tsunami from its history point.
+Two measures will be reported: the share of tsunami-associated earthquakes rated MODERATE or HIGH, and the share of earthquakes without a tsunami rated HIGH.
+A sensitivity analysis will vary the magnitude limits by $\pm 0.5$, the depth limit between 50 and 100~km, and the history radius between 200 and 500~km.
+
+\textbf{Limitations.} The level uses proxies only: it ignores the focal mechanism, the distance to the coast and local bathymetry; preliminary magnitudes and depths change after publication; the 2010--2025 history is short and uneven across regions; landslide and volcanic tsunamis are not rated; and the official override depends on U.S. warning centers whose coverage does not include every Pacific coast.
+
+\section{Architecture Overview}
+Figure~\ref{fig:architecture} adapts the course reference architecture to the four sources; it is exported from the Mermaid source in \path{docs/architecture.md}.
+All components run locally with Docker Compose; the scheduler (proposed: an Apache Airflow DAG) runs \texttt{ingest.py -{}-mode incremental}, and the Plotly Dash dashboard reads only from the database.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/architecture.png}
+\caption{High-level architecture (source: \texttt{docs/architecture.md}).}
+\label{fig:architecture}
+\end{figure}
+
+\chapter{Results}
+\label{ch:results}
+
+\section{Empirical Update Behavior}
 \label{sec:empirical-updates}
 Four snapshots were saved on 7 November 2026 at 05:04 and 14:03 UTC,
 12 November at 03:38 UTC, and 16 November at 01:37 UTC.
@@ -445,53 +789,6 @@ without evidence linking them to the same incident, they must not be
 called revisions of one event. Feed entries may also appear and
 disappear between saved captures.
 
-\subsection{Revised or Missing Records and Proposed Ingestion Strategy}
-The observed USGS revisions show why origin time or new identifiers
-alone would miss updates. The following rules are proposed for the
-ingestion contract; they have not yet been implemented or verified.
-
-\paragraph{USGS real-time feed.}
-The proposed ingestion strategy will compare all event identifiers in
-each downloaded feed and use \texttt{updated} rather than origin
-\texttt{time} as a revision watermark. It should compare both
-\texttt{properties} and \texttt{geometry}, and use idempotent writes
-keyed by a source identifier and event ID. A content hash of selected
-normalized fields could distinguish substantive changes from metadata
-updates. An event absent from a later feed should be retained while
-its status is investigated: an absence can mean aging out of the 30-day window,
-a magnitude revision below 4.5, or a deletion. An FDSN lookup by event ID
-distinguishes these cases; it was done manually for the six early absences of
-Section~\ref{sec:empirical-updates} and will be automated during ingestion.
-
-\paragraph{USGS FDSN catalog.}
-A proposed overlapping query with \texttt{updatedafter} could detect
-revisions after an event leaves the real-time feed; its schedule,
-overlap duration, and completeness still need validation. The two USGS
-endpoints may describe the same earthquake. A per-source key
-\texttt{(source, id)} prevents repeats within each source but does not
-merge those observations automatically. The Canonical Mapping must
-specify how USGS identifiers are normalized and how cross-source
-duplicates are recognized, without assuming a final table structure here.
-
-\paragraph{tsunami.gov.}
-The proposed comparison will track CAP identifiers and publication
-times per center across all entries in each Atom feed. A new CAP
-identifier is a new bulletin observation; a possible revision of the
-same event requires separate evidence, such as a shared incident
-identifier. Conditional requests using \texttt{Last-Modified} may
-reduce repeated downloads, but HTTP 304 behavior has not been tested.
-Polling cannot recover a bulletin published and removed between polls.
-
-\paragraph{NOAA HazEL and failed runs.}
-HazEL has no update timestamp, so a proposed historical refresh would
-compare records by identifier and content. The ingestion design should
-advance a source watermark only with a successful data commit and use
-idempotent writes so a failed batch can be retried. These failure and
-deduplication rules remain to be specified in Section~\ref{sec:contract}.
-
-
-% ===== 04_profiling.tex =====
-% Owner: TBD
 \section{Source Profiling and Data Quality}
 \label{sec:profiling}
 
@@ -598,200 +895,116 @@ The CAP--USGS examples below come from the saved 7 November snapshot. The NTWC b
 
 These candidates show why magnitude should be compared with tolerance rather than required to match exactly. An anomalous CAP time also calls for checking location and magnitude before proposing a link. Final matching and ambiguous pairs belong in the Canonical Mapping.
 
+\chapter{Discussion}
+\label{ch:discussion}
 
+\section{Revised or Missing Records and Proposed Ingestion Strategy}
+The observed USGS revisions show why origin time or new identifiers
+alone would miss updates. The following rules are proposed for the
+ingestion contract; they have not yet been implemented or verified.
 
-% ===== 05_mapping.tex =====
-% Owner: TBD
-\section{Canonical Mapping}
-\label{sec:mapping}
+\paragraph{USGS real-time feed.}
+The proposed ingestion strategy will compare all event identifiers in
+each downloaded feed and use \texttt{updated} rather than origin
+\texttt{time} as a revision watermark. It should compare both
+\texttt{properties} and \texttt{geometry}, and use idempotent writes
+keyed by a source identifier and event ID. A content hash of selected
+normalized fields could distinguish substantive changes from metadata
+updates. An event absent from a later feed should be retained while
+its status is investigated: an absence can mean aging out of the 30-day window,
+a magnitude revision below 4.5, or a deletion. An FDSN lookup by event ID
+distinguishes these cases; it was done manually for the six early absences of
+Section~\ref{sec:empirical-updates} and will be automated during ingestion.
 
-This section summarizes the canonical model specified in \path{workshop_1/mapping.md}; the full field definitions and validation rules are kept there, and the entity--relationship diagram source is \path{docs/er_diagram.md}.
+\paragraph{USGS FDSN catalog.}
+A proposed overlapping query with \texttt{updatedafter} could detect
+revisions after an event leaves the real-time feed; its schedule,
+overlap duration, and completeness still need validation. The two USGS
+endpoints may describe the same earthquake. A per-source key
+\texttt{(source, id)} prevents repeats within each source but does not
+merge those observations automatically. The Canonical Mapping must
+specify how USGS identifiers are normalized and how cross-source
+duplicates are recognized, without assuming a final table structure here.
 
-\subsection{Field Mapping to the Canonical \texttt{event}}
-An \texttt{event} row is one normalized observation from one source.
-Five controlled source identifiers are used: \texttt{noaa\_hazel}, \texttt{usgs\_fdsn}, \texttt{usgs\_realtime}, \texttt{ntwc} and \texttt{ptwc}.
-Table~\ref{tab:mapping} maps the eight required fields.
+\paragraph{tsunami.gov.}
+The proposed comparison will track CAP identifiers and publication
+times per center across all entries in each Atom feed. A new CAP
+identifier is a new bulletin observation; a possible revision of the
+same event requires separate evidence, such as a shared incident
+identifier. Conditional requests using \texttt{Last-Modified} may
+reduce repeated downloads, but HTTP 304 behavior has not been tested.
+Polling cannot recover a bulletin published and removed between polls.
 
+\paragraph{NOAA HazEL and failed runs.}
+HazEL has no update timestamp, so a proposed historical refresh would
+compare records by identifier and content. The ingestion design should
+advance a source watermark only with a successful data commit and use
+idempotent writes so a failed batch can be retried. These failure and
+deduplication rules remain to be specified in Section~\ref{sec:contract}.
+
+\section{Risks and Mitigation}
 \begin{table}[H]
 \centering
-\footnotesize
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.7cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
-\toprule
-Canonical field & NOAA HazEL & USGS FDSN / real-time & tsunami.gov (Atom + CAP) & Rule \\
-\midrule
-\texttt{event\_id} & Generated; HazEL \texttt{id} kept as \texttt{external\_id} & Generated; CSV \texttt{id} / feature \texttt{id} kept as \texttt{external\_id} & Generated; CAP \texttt{identifier} kept as \texttt{external\_id} (Atom entry \texttt{id} stored separately) & Opaque key independent of source IDs; \texttt{UNIQUE(source,\allowbreak{} external\_id)} \\
-\texttt{source} & \texttt{noaa\_hazel} & \texttt{usgs\_fdsn} / \texttt{usgs\_realtime} & \texttt{ntwc} / \texttt{ptwc}, from the feed & Controlled value, FK to \texttt{source}; CAP \texttt{sender} does not define it \\
-\texttt{event\_type} & \texttt{tsunami} & \texttt{earthquake} & \texttt{bulletin} & A bulletin is not evidence that a tsunami occurred \\
-\texttt{timestamp} (UTC) & \texttt{year}--\texttt{second} columns; null when the clock is incomplete & \texttt{time} (ISO 8601) / \texttt{properties.\allowbreak time} (epoch ms) & CAP \texttt{sent} (issue time) & UTC; a date-only record keeps \texttt{event\_date} and \texttt{time\_precision}, never a made-up midnight \\
-\texttt{latitude} & \texttt{latitude} & \texttt{latitude} / \texttt{geometry.\allowbreak coordinates[1]} & \texttt{EventLatLon} (first value); Atom \texttt{geo:lat} as fallback & WGS84 decimal degrees; nulls preserved \\
-\texttt{longitude} & \texttt{longitude} & \texttt{longitude} / \texttt{geometry.\allowbreak coordinates[0]} & \texttt{EventLatLon} (second value); Atom \texttt{geo:long} as fallback & WGS84, normalized to $-180$ to $180$; raw value kept \\
-\texttt{severity} & \texttt{maxWaterHeight} (not \texttt{eqMagnitude}) & \texttt{mag} & CAP \texttt{severity} category & Stored with \texttt{severity\_scale} and \texttt{severity\_unit}; values of different scales are never compared \\
-\texttt{raw\_\allowbreak reference} & JSON file and item \texttt{id} & CSV file and row \texttt{id} / GeoJSON snapshot and feature \texttt{id} & CAP file and identifier, with Atom file and entry & External ID, saved file path, record locator, original URL and content hash \\
-\bottomrule
-\end{tabularx}
-\caption{Mapping of the source fields to the canonical \texttt{event}.}
-\label{tab:mapping}
-\end{table}
-
-Besides the required fields, \texttt{event} also stores \texttt{external\_id}, \texttt{event\_date}, \texttt{known\_hour} and \texttt{known\_minute} (for partial NOAA times), \texttt{time\_precision}, \texttt{severity\_scale}, \texttt{severity\_unit}, an optional \texttt{event\_group\_id}, and the derived flags \texttt{in\_pacific\_ocean} and \texttt{in\_pacific\_scope} (Section~\ref{sec:hazard}).
-
-\subsection{Domain Tables}
-Each \texttt{event} has exactly one detail row in the domain table that matches its \texttt{event\_type}; the detail row uses \texttt{event\_id} as both primary and foreign key (Table~\ref{tab:domain}).
-
-\begin{table}[H]
-\centering
-\footnotesize
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.4cm}@{}}
-\toprule
-Table & Main fields (source) & Important distinction \\
-\midrule
-\texttt{earthquake} & \texttt{magnitude} and \texttt{magnitude\_type} (\texttt{mag}, \texttt{magType}), \texttt{depth\_km} (FDSN \texttt{depth} or GeoJSON coordinate 3), \texttt{place}, \texttt{status}, \texttt{source\_updated\_\allowbreak at} (\texttt{updated}), \texttt{tsunami\_bulletin\_\allowbreak flag} (real-time \texttt{tsunami}) & The flag only indicates bulletin-related information; \texttt{updated} is not the origin time. \\
-\texttt{tsunami\_event} & \texttt{causeCode}, \texttt{eventValidity}, \texttt{regionCode}, \texttt{warningStatusId} (nullable FKs to the NOAA catalogs), \texttt{earthquakeEventId}, \texttt{eqMagnitude}, \texttt{eqDepth}, \texttt{maxWaterHeight}, \texttt{numRunups}, \texttt{country}, \texttt{locationName} & The causative earthquake's magnitude and depth are not tsunami severity; \texttt{numRunups} is a count, not a height; the NOAA earthquake ID is not a USGS key. \\
-\texttt{tsunami\_bulletin} & Center, CAP \texttt{identifier}, \texttt{sender}, \texttt{sent}, \texttt{msgType}, \texttt{event}, \texttt{severity}, \texttt{urgency}, \texttt{certainty}, \texttt{expires}, preliminary magnitude and type, depth text, reported origin time and location; Atom entry \texttt{id}, \texttt{updated} and CAP link & \texttt{sent} is the issue time and \texttt{EventOriginTime} the reported earthquake origin; depth is parsed to km only when the unit is explicit. \\
-\bottomrule
-\end{tabularx}
-\caption{Hazard-specific domain tables.}
-\label{tab:domain}
-\end{table}
-
-Four NOAA descriptor catalogs (\texttt{noaa\_cause}, \texttt{noaa\_event\_validity}, \texttt{noaa\_region} and \texttt{noaa\_warning\_status}) store the saved code tables as integer \texttt{code} and text \texttt{description}; missing codes stay null instead of receiving an invented ``unknown'' code.
-
-\paragraph{Event identity and links.}
-Observations of the same phenomenon from different sources are not merged into one row.
-After review, observations of the same type (for example, an FDSN and a real-time record of one earthquake) join the same \texttt{event\_group}, which needs at least two members.
-Links between different types are stored in \texttt{event\_relation}: \texttt{identity\_candidate} (a possible match awaiting review), \texttt{caused\_by} (tsunami to earthquake) and \texttt{reports\_on} (bulletin to earthquake or tsunami), each with a \texttt{pending}, \texttt{accepted} or \texttt{rejected} status and an evidence reference.
-Time and distance alone never confirm identity, and a non-seismic tsunami needs no earthquake link.
-
-\subsection{Unit Conversions and Rules}
-\begin{itemize}[nosep]
-  \item \textbf{Time:} all timestamps are converted to UTC and kept as distinct fields: USGS origin and update times (epoch milliseconds in the feed), CAP \texttt{sent}, \texttt{expires} and reported origin, and Atom \texttt{updated}. A NOAA record without seconds keeps its date and known clock components with a \texttt{time\_precision}. Inconsistent source times, such as the PTWC origin date (problem 6) or the NTWC \texttt{expires} before \texttt{sent} (problem 8), are flagged and preserved, never silently corrected.
-  \item \textbf{Coordinates:} WGS84 (EPSG:4326) decimal degrees; the canonical longitude is normalized to $-180$ to $180$ while the raw value is kept. GeoJSON order is longitude, latitude, depth. Spatial tests across the antimeridian are handled separately.
-  \item \textbf{Scope flags:} \texttt{in\_pacific\_ocean} and \texttt{in\_pacific\_scope} follow the Marine Regions selection and the 100~km margin of Section~\ref{sec:hazard}; events without valid coordinates are counted separately.
-  \item \textbf{Depth and heights:} USGS depth and NOAA \texttt{eqDepth} are in kilometers, and NOAA \texttt{maxWaterHeight} is in meters, as documented in the HazEL search forms (Section~1.1). CAP depth text is parsed to km only when the unit is explicit.
-  \item \textbf{Magnitude and severity:} magnitude is always stored with its type (\texttt{mww}, \texttt{mb}, \texttt{Ml}, \texttt{Mwp}, \ldots). Earthquake magnitude, tsunami water height and CAP severity are three different scales recorded in \texttt{severity\_scale}; they are never compared or aggregated. The USGS \texttt{tsunami} flag, NOAA \texttt{warningStatusId} and CAP severity are not interchangeable and none of them proves that a tsunami occurred.
-  \item \textbf{Missing values and validation:} missing information stays \texttt{NULL} and is never replaced by invented values. During ingestion, required identifiers, data types and coordinate ranges are validated, and records that cannot be processed go to \texttt{rejected\_record} with the reason.
-  \item \textbf{Identifiers and revisions:} source IDs are kept as text; \texttt{UNIQUE(source, external\_id)} identifies the current observation, and a content hash detects real changes. Earlier versions remain traceable through the saved raw files. A new CAP identifier is a new bulletin, not a revision of an earlier one.
-  \item \textbf{Cross-source matching:} the exploratory rule of Section~\ref{sec:overlap} (15 minutes for exact NOAA times, at most 100~km between epicenters, and a magnitude difference of at most 0.5 where required) only proposes \texttt{identity\_candidate} links. The 100~km matching tolerance is independent of the 100~km monitoring margin. Ambiguous candidates, such as the two NOAA records with more than one eligible USGS event, stay pending until reviewed.
-\end{itemize}
-
-\subsection{Draft ER Diagram}
-Figure~\ref{fig:er} shows the complete model, exported from the Mermaid source in \path{docs/er_diagram.md} so that the report and the repository share one diagram.
-Exactly one domain row matches each \texttt{event\_type}, and an \texttt{event\_group} has at least two members; Mermaid cannot draw these two constraints, so they are business rules.
-
-\begin{sidewaysfigure}
-\centering
-\includegraphics[width=\textheight,height=0.95\textwidth,keepaspectratio]{figures/er_diagram.png}
-\caption{Draft entity--relationship diagram (source: \texttt{docs/er\_diagram.md}).}
-\label{fig:er}
-\end{sidewaysfigure}
-
-
-
-% ===== 06_contract.tex =====
-% Owner: TBD
-\section{Ingestion Contract Draft}
-\label{sec:contract}
-
-This section turns the findings of Sections~\ref{sec:historical} and~\ref{sec:incremental} into a per-source contract for \texttt{python ingest.py -{}-mode historical} and \texttt{-{}-mode incremental}.
-The rules are proposals for Workshops~2 and~3; they have not been implemented yet.
-The duplicate keys follow the canonical model of Section~\ref{sec:mapping}: \texttt{UNIQUE(source, external\_id)}, where \texttt{source} is one of the five controlled source identifiers.
-
-\begin{table}[H]
-\centering
-\footnotesize
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.6cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}p{2.4cm}@{}}
-\toprule
-Source & Historical strategy & Incremental strategy & Duplicate key & Overlap window \\
-\midrule
-NOAA HazEL & Query 2010--2025, regions 80--89; iterate \texttt{page} = 1 to \texttt{totalPages} (200 records per page); check that the record count equals \texttt{totalItems} and that no \texttt{id} repeats. & Not an incremental source: records have no update timestamp, so a historical re-run downloads the in-scope records again and compares them by content hash. & (\texttt{noaa\_hazel}, \texttt{id}) & Not needed: every refresh reads the full period. \\
-USGS FDSN & One calendar year per request, 2010--2025 (16 requests), $M \geq 6$ in the broad Pacific rectangle; compare each year with the \texttt{count} method; then apply the maritime-scope filter. & Reconciliation query with \texttt{updatedafter}, to catch revisions made after an event has left the real-time feed; watermark: largest stored \texttt{updated}. & (\texttt{usgs\_fdsn}, \texttt{id}) & Query from the watermark minus an overlap (one day proposed), so that late or delayed revisions are not missed. \\
-USGS real-time feed & -- & Poll the 4.5+ past-month feed at most once per minute; process an event only when its \texttt{id} is new or its \texttt{updated} is greater than the stored value; compare \texttt{properties} and \texttt{geometry}. & (\texttt{usgs\_realtime}, \texttt{id}) & The whole 30-day file is read on every poll, so recent revisions are always seen again. \\
-tsunami.gov (NTWC, PTWC) & -- & Poll each Atom feed every 5 minutes; a CAP \texttt{identifier} not yet stored is a new bulletin, whose CAP message is then downloaded; watermark: latest CAP \texttt{sent} per center. & (\texttt{ntwc} or \texttt{ptwc}, CAP \texttt{identifier}) & All entries present in the feed are re-checked on every poll; bulletins published and removed between two polls cannot be recovered. \\
-\bottomrule
-\end{tabularx}
-\caption{Ingestion contract per source.}
-\label{tab:contract}
-\end{table}
-
-Every downloaded response is first saved unchanged in the raw landing zone (\path{data/raw/}) with the name \path{source_YYYYMMDD_HHMMSS.ext}, before any parsing.
-Records that fail validation (for example, invalid coordinates or an unparseable time) go to \texttt{rejected\_record} with the run identifier and the reason, and never stop the rest of the batch.
-Both incremental modes are idempotent: running them twice in a row stores no duplicate rows, because writes are upserts on the duplicate key and a record whose content hash has not changed is skipped.
-
-\subsection{Correctness After a Failed Run}
-Each execution creates an \texttt{ingestion\_run} row (mode, start time, status) before any data is written, and closes it with its final status and counts.
-For every source, the data of one batch and the new watermark in \texttt{ingestion\_state} are written in the same database transaction, so the watermark advances only after a successful commit.
-The behavior after a failure is therefore:
-\begin{itemize}[nosep]
-  \item \textbf{Failure before the commit} (network error, timeout or invalid response): the transaction is rolled back, the watermark keeps its previous value, the run is marked as failed, and the next run repeats the same interval.
-  \item \textbf{Partially loaded historical load:} batches are committed one partition at a time (one HazEL page, one USGS year), so a failed partition is retried alone while the committed ones are kept; because writes are upserts, repeating a partition creates no duplicates.
-  \item \textbf{Failure after downloading:} the raw file is already in the landing zone, so the batch can be reprocessed from it without downloading again.
-  \item \textbf{Retries:} each request is retried three times with increasing waits, the team policy of Section~\ref{sec:historical}, before the run is marked as failed.
-\end{itemize}
-The \texttt{-{}-mode status} command reports, for each source, the watermark, the last successful run and the row counts, which is how a stalled source is detected.
-
-
-
-% ===== 07_project.tex =====
-% Owner: TBD
-\section{Project Definition}
-\label{sec:project}
-
-\subsection{Project Overview}
-\todo{Title, motivation, goal (data-engineering and analytical), scope, explicit exclusions and constraints.}
-
-\subsection{Functional User}
-\todo{Role, profile, decisions supported, and why the dashboard is useful.}
-
-\subsection{User Stories}
-\noindent\begin{tabularx}{\textwidth}{@{}clXc@{}}
-\toprule
-ID & Type & Story & MoSCoW \\
-\midrule
-US1 & Monitoring & As a \todo{user}, I want to \todo{action} so that \todo{benefit}. & \todo{} \\
-US2 & Monitoring & \todo{} & \todo{} \\
-US3 & Analysis & \todo{} & \todo{} \\
-US4 & Analysis & \todo{} & \todo{} \\
-US5 & Trust & \todo{} & \todo{} \\
-US6 & Trust & \todo{} & \todo{} \\
-\bottomrule
-\end{tabularx}
-
-\subsection{Indicator Proposal}
-\todo{Name, inputs (magnitude, depth, location, historical tsunami association, official alert), rule, output scale, how it will be validated against historical events. State clearly that it is a monitoring aid and not a prediction, and list its limitations.}
-
-\subsection{Risks and Mitigation}
-\noindent\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
 \toprule
 Risk & Impact & Mitigation \\
 \midrule
-Source outage & \todo{} & \todo{} \\
-Rate limits & \todo{} & \todo{} \\
-Schema change & \todo{} & \todo{} \\
-License and attribution & \todo{} & \todo{} \\
-Ambiguous identifiers & \todo{} & \todo{} \\
+Source outage & Missing updates; the dashboard shows stale data without noticing. & Retries with increasing waits; failed runs keep the previous watermark; the data-health panel shows the watermark age (Section~\ref{sec:contract}). \\
+Rate limits & Blocked or truncated requests (USGS FDSN returns at most 20,000 events per query). & One USGS request per year with a \texttt{count} check; polling at most once per minute (USGS) and every 5 minutes (tsunami.gov); identified User-Agent; caching of raw files. \\
+Schema change & Parsing failures or silently wrong fields (the two centers already use different CAP parameters, and Marine Regions stores ``Easter'' instead of ``Eastern''). & Validation before loading, \texttt{rejected\_record} with the reason, raw files kept for reprocessing, and tests with recorded fixtures. \\
+License and attribution & Use outside the terms of a source (Marine Regions asks users not to redistribute its files). & Licenses recorded per source; boundaries downloaded by a script instead of committed; credit lines in the report and README. \\
+Ambiguous identifiers & Wrong links between records (two NOAA records have more than one USGS candidate; a PTWC CAP origin date is one day off). & Links stored as \texttt{identity\_candidate} with a review status; no automatic merging; groups only after review. \\
+Record revisions & Outdated values (25 relocations in nine hours; six magnitudes lowered below 4.5). & Watermark on \texttt{updated}, content hash, re-reading the 30-day feed and an FDSN lookup for early absences (Section~\ref{sec:empirical-updates}). \\
+Data volume & Memory exhaustion: the 100~km test on the 85~MB maritime boundaries exhausted a 7~GB laptop when run together with other programs. & Prepared geometries, simplified boundaries for display, and heavy notebook steps run alone. \\
 \bottomrule
 \end{tabularx}
+\caption{Risks and mitigation.}
+\label{tab:risks}
+\end{table}
 
-\subsection{Architecture Overview}
-\begin{figure}[H]
-\centering
-\fbox{\parbox{0.8\textwidth}{\centering\vspace{3cm}\todo{insert architecture diagram}\vspace{3cm}}}
-% \includegraphics[width=\textwidth]{figures/architecture.png}
-\caption{High-level architecture adapted to tsunami monitoring.}
-\end{figure}
+\chapter{Conclusions and Open Questions}
+\label{ch:conclusions}
+\section{Main Decisions}
+\begin{itemize}[nosep]
+  \item \textbf{Scope:} the Pacific is defined by three official Marine Regions maritime regions plus a 100~km monitoring margin, which keeps 205 of the 221 NOAA events and 319 of the 343 USGS historical events (Section~\ref{sec:hazard}).
+  \item \textbf{Sources:} NOAA HazEL and USGS FDSN as historical sources; the USGS 4.5+ past-month feed and the NTWC/PTWC Atom and CAP feeds as incremental sources (Chapter~\ref{ch:sources}).
+  \item \textbf{Units:} HazEL depth is in kilometers and maximum water height in meters, as documented by the HazEL search forms (Section~\ref{sec:severity}).
+  \item \textbf{Data model:} one \texttt{event} row per source observation, three domain tables, and reviewed links through \texttt{event\_group} and \texttt{event\_relation} instead of automatic merging (Section~\ref{sec:mapping}).
+  \item \textbf{Incremental design:} watermark on the USGS \texttt{updated} field, upserts on \texttt{(source, external\_id)}, content hashes, and the watermark advancing only after a successful commit (Section~\ref{sec:contract}).
+  \item \textbf{Indicator:} the Tsunami Relevance Level, based on magnitude, depth, historical tsunami association and official bulletins (Section~\ref{sec:indicator}).
+\end{itemize}
+
+\section{Key Findings}
+Records change after publication: across the three intervals 22 to 121 new and 25 to 123 modified USGS events appeared, the revisions of the first interval arrived between 1 and 29 days after the earthquake, and none of the 288 absences was a deletion (282 aged out of the 30-day window and six were magnitude downgrades below 4.5).
+The tsunami.gov feeds change rarely but contain inconsistencies that must be flagged and preserved, not corrected.
+Cross-source matching works well for NOAA and USGS (28 candidate pairs with median time and distance differences close to zero), but two NOAA records have more than one USGS candidate, so links require review.
+
+\section{Open Questions for Workshop 2}
+\begin{itemize}[nosep]
+  \item Build the Docker Compose stack and the PostgreSQL schema from the ER diagram (Figure~\ref{fig:er}).
+  \item Implement \texttt{--mode historical} beyond the raw landing zone: parsing, validation, quarantine and idempotent loading, with \texttt{config/sources.yaml} and \texttt{.env.example} completed.
+  \item Fix the final cross-source matching rule and decide how ambiguous candidates are reviewed.
+  \item Automate the FDSN lookup that explains events absent from the feed.
+  \item Validate and calibrate the indicator thresholds against the 2010--2025 record.
+  \item Reduce the memory cost of the 100~km scope test so that the pipeline runs comfortably on the team's laptops.
+\end{itemize}
+
+\chapter{Reflection}
+\label{ch:reflection}
+\textbf{What worked.} Querying every source for real before designing anything was the most valuable decision of the workshop: the samples revealed problems that the documentation does not mention, such as the one-day error in a PTWC origin time, magnitudes revised weeks after an earthquake, and the HazEL units, which are stated only in the search forms and not in the API description.
+Keeping every response unchanged in \path{workshop_1/samples/} allowed us to recheck earlier claims whenever a new snapshot arrived, and several statements of the report were corrected this way.
+
+\textbf{What was difficult.} The sources disagree on almost everything that looks simple: time formats, time zones, magnitude types, identifiers and coordinate conventions.
+The geographic scope took several iterations, from a hand-drawn polygon to the official Marine Regions boundaries, and the antimeridian and the size of the boundary file (which exhausted a 7~GB laptop) required care.
+Coordinating three people on one report and one notebook also produced conflicts, such as a duplicate PDF uploaded through the web interface and simultaneous builds of the report.
+
+\textbf{Lessons learned.} Every number in the report should be traceable to a notebook output or a saved file; assumptions must be stated as proposals until they are verified; absence of data is not evidence of deletion; and small, frequent commits with clear messages make teamwork much easier than large uploads.
 
 
-
-% ===== 08_conclusions.tex =====
-% Owner: TBD
-\section*{Conclusions and Open Questions}
-\addcontentsline{toc}{section}{Conclusions and Open Questions}
-\todo{Main decisions taken in this workshop and what remains open for Workshop 2.}
-
-
-
-% ===== 09_references.tex =====
-% Owner: TBD
+    % -------------------------------------------------------------------
+    % References
+    % -------------------------------------------------------------------
 \begin{thebibliography}{9}
 \bibitem{hazel} National Geophysical Data Center / World Data Service. \emph{NCEI/WDS Global Historical Tsunami Database}. NOAA National Centers for Environmental Information. doi:10.7289/V5PN93H7. Accessed through the HazEL API, \url{https://www.ngdc.noaa.gov/hazel/view/swagger}, 8 November 2026.
 \bibitem{usgsfdsn} U.S.\ Geological Survey. \emph{API Documentation -- Earthquake Catalog}. \url{https://earthquake.usgs.gov/fdsnws/event/1/}. Accessed 8 November 2026.
@@ -816,22 +1029,22 @@ Smithsonian Institution, Global Volcanism Program (2022).
 \bibitem{tracy}
 Shugar, D. H., et al.\ (2026).
 \emph{A 481 m-high landslide-tsunami in a
-cruise ship-frequented Alaska fjord}.
+cruise ship--frequented Alaska fjord}.
+\textit{Science}. doi:10.1126/science.aec3187.
 \url{https://doi.org/10.1126/science.aec3187}.
+Accessed 16 November 2026.
 \end{thebibliography}
 
-
-
-\appendix
-
-% ===== 10_appendix.tex =====
-% Owner: TBD
-\section{Real Response Snippets}
+    % -------------------------------------------------------------------
+    % Appendices
+    % -------------------------------------------------------------------
+    \begin{appendices}
+\chapter{Real Response Snippets}
 \label{app:snippets}
 Short excerpts of the unmodified responses stored in \path{workshop_1/samples/}.
 Each excerpt shows one record; ``\ldots'' marks fields or lines left out for brevity.
 
-\subsection{NOAA HazEL -- tsunami events}
+\section{NOAA HazEL -- tsunami events}
 File \path{noaa_tsunamis_pacific_2010_2025.json}, record of the 2011 Tohoku tsunami, and the pagination fields of the response:
 \begin{lstlisting}
 {"items": [ ...
@@ -844,7 +1057,7 @@ File \path{noaa_tsunamis_pacific_2010_2025.json}, record of the 2011 Tohoku tsun
  "page": 1, "totalPages": 2, "itemsPerPage": 200, "totalItems": 221}
 \end{lstlisting}
 
-\subsection{USGS FDSN -- earthquake catalog}
+\section{USGS FDSN -- earthquake catalog}
 File \path{usgs_earthquakes_2010_2011_m6_pacific.csv}, header and the row of the same earthquake:
 \begin{lstlisting}
 time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,type,horizontalError,depthError,magError,magNst,status,locationSource,magSource
@@ -852,7 +1065,7 @@ time,latitude,longitude,depth,mag,magType,nst,gap,dmin,rms,net,id,updated,place,
 \end{lstlisting}
 The two records describe the same event: same origin minute, epicenter and magnitude, and the HazEL \texttt{eqDepth} (29) equals the USGS depth in km.
 
-\subsection{USGS real-time feed}
+\section{USGS real-time feed}
 The file \path{usgs_realtime_20261107_050434.geojson} contains feed
 metadata and its first feature. Times are in epoch milliseconds;
 coordinates are longitude, latitude, and depth in km.
@@ -870,7 +1083,7 @@ coordinates are longitude, latitude, and depth in km.
   ... ]}
 \end{lstlisting}
 
-\subsection{tsunami.gov -- PTWC Atom feed}
+\section{tsunami.gov -- PTWC Atom feed}
 File \path{ptwc_20261107_050434.xml}, the single entry of the feed (an information statement); the linked CAP message is stored in \path{ptwc_cap1_20261107_050434.xml}:
 \begin{lstlisting}
 <entry>
@@ -886,6 +1099,27 @@ File \path{ptwc_20261107_050434.xml}, the single entry of the feed (an informati
 </entry>
 \end{lstlisting}
 
+\chapter{Reproducing the Workshop 1 Results}
+\label{app:reproduce}
+From the repository root, with Python 3.12 to 3.14:
+\begin{lstlisting}
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
+# Raw samples used in this report (already saved in workshop_1/samples/)
+python3 workshop_1/download_historical_samples.py --force
+python3 workshop_1/download_incremental_samples.py
+
+# Marine Regions boundaries for the geographic scope (about 85 MB)
+python3 workshop_1/download_marine_regions.py
+
+# Ingestion stub: raw landing zone only in Workshop 1
+python3 ingest.py --mode historical --start 2010-01-01 --end 2025-12-31
+python3 ingest.py --mode incremental
+python3 ingest.py --mode status
+\end{lstlisting}
+The profiling notebook \path{notebooks/01_source_profiling.ipynb} is run from the \path{notebooks/} directory with the \texttt{.venv} kernel.
+    \end{appendices}
 
 \end{document}
