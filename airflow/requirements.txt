@@ -1,0 +1,8 @@
+# Python packages used by the DAGs inside the Airflow containers (Python 3.12).
+# The versions bundled with apache/airflow:2.10.4 satisfy these ranges, so nothing is
+# downloaded today; keep them compatible with Airflow's constraints when adding packages.
+requests>=2.32
+pandas>=2.1,<3.0
+pyarrow>=14
+PyYAML>=6.0
+# psycopg2 (PostgreSQL driver) also comes with the base image.

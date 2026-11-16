@@ -1,4 +1,43 @@
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: airflow/Dockerfile
+  image: tsunami-airflow:2.10.4
+  env_file:
+    - path: .env
+      required: false
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    # Project database (PostGIS service "db"), used by the DAGs as the "tsunami_db" connection
+    AIRFLOW_CONN_TSUNAMI_DB: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    # Project code and medallion layers inside the containers
+    PYTHONPATH: /opt/airflow/project
+    PROJECT_DIR: /opt/airflow/project
+    RAW_DIR: /opt/airflow/datalake_bronze
+    SILVER_DIR: /opt/airflow/datalake_silver
+    GOLD_DIR: /opt/airflow/datalake_gold
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./datalake_bronze:/opt/airflow/datalake_bronze
+    - ./datalake_silver:/opt/airflow/datalake_silver
+    - ./datalake_gold:/opt/airflow/datalake_gold
+    - ./src:/opt/airflow/project/src
+    - ./config:/opt/airflow/project/config:ro
+    - ./ingest.py:/opt/airflow/project/ingest.py:ro
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on: &airflow-depends
+    airflow-db:
+      condition: service_healthy
+    db:
+      condition: service_healthy
+
 services:
+  # Project database: canonical model (Workshop 1) on PostgreSQL + PostGIS
   db:
     image: postgis/postgis:16-3.7
     container_name: tsunami-postgres
@@ -24,5 +63,74 @@ services:
       timeout: 5s
       retries: 10
 
+  # Airflow metadata database (separate from the project database)
+  airflow-db:
+    image: postgres:16
+    container_name: tsunami-airflow-db
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-off job: migrate the metadata database and create the admin user
+  airflow-init:
+    <<: *airflow-common
+    container_name: tsunami-airflow-init
+    command:
+      - bash
+      - -c
+      - |
+        airflow db migrate &&
+        airflow users create \
+          --username "$${AIRFLOW_ADMIN_USER}" --password "$${AIRFLOW_ADMIN_PASSWORD}" \
+          --firstname Team --lastname Eight \
+          --role Admin --email admin@example.com || true
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: tsunami-airflow-webserver
+    command: webserver
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: tsunami-airflow-scheduler
+    command: scheduler
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  airflow-triggerer:
+    <<: *airflow-common
+    container_name: tsunami-airflow-triggerer
+    command: triggerer
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  airflow_db_data:

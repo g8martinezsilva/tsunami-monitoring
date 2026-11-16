@@ -1,0 +1,3 @@
+# The Airflow image only needs its requirements file; keep the build context small (.venv, data, notebooks).
+*
+!airflow/requirements.txt
