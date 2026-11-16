@@ -5,3 +5,12 @@ __pycache__/
 data/raw/*
 !data/raw/.gitkeep
 .vscode/
+
+# Original geographic reference files
+config/geographic_reference/goas_v01.*
+
+# Uncompressed geographic reference
+config/geographic_reference/pacific_maritime_regions.geojson
+
+# Generated profiling reports
+notebooks/report_html/

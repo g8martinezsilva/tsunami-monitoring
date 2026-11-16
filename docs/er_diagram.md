@@ -1,30 +1,80 @@
-# Preliminary entity–relationship diagram
+# Workshop 1 preliminary entity–relationship diagram
 
-This Workshop 1 diagram shows proposed identities and optional links. Each `event` has one matching domain row (`earthquake`, `tsunami_event`, or `tsunami_bulletin`) according to `event_type`. The three optional lines from `event` express that subtype choice; they do not mean that a single event should have all three rows. A source record identifies a saved observation, while `event_id` identifies the internally represented event.
+`event` is one normalized source observation. The proposed `UNIQUE(source, external_id)` rule preserves source identity; a later revision updates that observation rather than adding another `event`. `raw_reference` identifies the original file and record, with a content hash when computed for change detection; earlier snapshots remain in the raw/audit trail. These are conceptual rules, not implemented SQL. `event_group` groups at least two verified observations of the **same phenomenon and event type**. An event can belong to zero or one group. A tsunami, its possible causative earthquake, and a bulletin remain separate events and use a reviewed `event_relation` when linked.
 
 ```mermaid
 erDiagram
+    source {
+        string source_id PK
+        string name
+        string url
+        string format
+        string license
+    }
+
+    ingestion_run {
+        string run_id PK
+        string source_id FK
+        string mode
+        datetime started_at
+        datetime finished_at
+        string status
+        int read_count
+        int accepted_count
+        int updated_count
+        int rejected_count
+        json input_references
+    }
+
+    ingestion_state {
+        string source_id PK, FK
+        string watermark
+        string last_successful_run_id FK
+    }
+
+    event_group {
+        string event_group_id PK
+        string event_type
+        string evidence_reference
+    }
+
     event {
         string event_id PK
-        string source
+        string source FK
+        string external_id
+        string event_group_id FK
         string event_type
         datetime timestamp
         date event_date
+        int known_hour
+        int known_minute
         string time_precision
         decimal latitude
         decimal longitude
         string severity
         string severity_scale
         string severity_unit
-        string raw_reference
+        json raw_reference
+        boolean in_pacific_ocean
+        boolean in_pacific_scope
     }
 
-    source_record {
-        string source_record_id PK
-        string event_id FK
-        string source
-        string original_id
-        string raw_reference
+    rejected_record {
+        string rejection_id PK
+        string source_id FK
+        string run_id FK
+        string external_id
+        string reason
+        json raw_reference
+    }
+
+    event_relation {
+        string relation_id PK
+        string from_event_id FK
+        string to_event_id FK
+        string relation_type
+        string review_status
+        string evidence_reference
     }
 
     earthquake {
@@ -45,7 +95,6 @@ erDiagram
         int region_code FK
         int warning_status_id FK
         int noaa_earthquake_event_id
-        string causative_earthquake_event_id FK
         decimal reported_eq_magnitude
         decimal reported_eq_depth
         decimal max_water_height
@@ -55,48 +104,57 @@ erDiagram
     tsunami_bulletin {
         string event_id PK, FK
         string center
-        string atom_entry_id
         string cap_identifier
+        string atom_entry_id
+        string sender
         datetime sent_at
-        datetime reported_origin_at
+        datetime atom_updated_at
+        datetime expires_at
         string msg_type
+        string cap_event
         string cap_severity
         string urgency
         string certainty
+        datetime reported_origin_at
         decimal preliminary_magnitude
-        string earthquake_event_id FK
+        string preliminary_magnitude_type
+        string reported_depth_text
+        decimal reported_depth_km
     }
 
     noaa_cause {
         int code PK
         string description
     }
-
     noaa_event_validity {
         int code PK
         string description
     }
-
     noaa_region {
         int code PK
         string description
     }
-
     noaa_warning_status {
         int code PK
         string description
     }
 
-    event ||--|{ source_record : "documented by"
-    event ||--o| earthquake : "earthquake details"
-    event ||--o| tsunami_event : "tsunami details"
-    event ||--o| tsunami_bulletin : "bulletin details"
-    earthquake o|--o{ tsunami_event : "confirmed cause"
-    earthquake o|--o{ tsunami_bulletin : "confirmed subject"
-    noaa_cause o|--o{ tsunami_event : "cause code"
-    noaa_event_validity o|--o{ tsunami_event : "validity code"
-    noaa_region o|--o{ tsunami_event : "region code"
-    noaa_warning_status o|--o{ tsunami_event : "historical status code"
+    source ||--o{ event : supplies
+    source ||--o{ ingestion_run : executes
+    source ||--o| ingestion_state : tracks
+    source ||--o{ rejected_record : identifies
+    ingestion_run ||--o{ rejected_record : quarantines
+    ingestion_run o|--o| ingestion_state : last_successful
+    event_group o|--|{ event : groups
+    event ||--o| earthquake : has_details
+    event ||--o| tsunami_event : has_details
+    event ||--o| tsunami_bulletin : has_details
+    event ||--o{ event_relation : from_event
+    event ||--o{ event_relation : to_event
+    noaa_cause o|--o{ tsunami_event : cause
+    noaa_event_validity o|--o{ tsunami_event : validity
+    noaa_region o|--o{ tsunami_event : region
+    noaa_warning_status o|--o{ tsunami_event : warning_status
 ```
 
-`o|` on the earthquake side means a tsunami or bulletin can have no linked earthquake. A link is set only after review, not from matching source IDs alone. The four descriptor relationships are nullable; a missing NOAA code stays null. CAP `cap_severity` belongs to the bulletin and is unrelated to `noaa_warning_status`. Full column definitions and normalization rules are in `workshop_1/mapping.md`.
+The three optional domain lines encode a subtype choice: **exactly one** detail row must match `event.event_type`. Mermaid's `|{` shows one or more group members; it cannot fully express the **two-member minimum**, which remains a business rule. `event_relation` records `identity_candidate`, `caused_by`, or `reports_on` links with `pending`, `accepted`, or `rejected` review status. If an identity candidate is accepted, the events join an `event_group`; group membership alone states confirmed identity. The original relation may remain as evidence of the review, without becoming a second source of truth. NOAA descriptor FKs, group membership, source watermark, and last successful run are optional where the source data or process do not provide them. Full field definitions and validation rules are in `workshop_1/mapping.md`.

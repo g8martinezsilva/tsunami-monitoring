@@ -1,137 +1,63 @@
-# Draft data model and canonical mapping
+# Workshop 1 canonical mapping
 
-**Status:** Workshop 1 discussion draft. This document defines entities and mapping rules; it does not define a physical database or an ingestion pipeline.
+**Status:** Conceptual design for Workshop 1. The database and ingestion pipelines are not implemented here. Source evidence is in `workshop_1/samples/` and `notebooks/01_source_profiling.ipynb`.
 
-## 1. Purpose and evidence
+## 1. Purpose and Sources
 
-The model covers historical Pacific tsunami events from NOAA HazEL (2010–2025), a Pacific USGS FDSN earthquake sample (2010–2011, M ≥ 6), saved USGS real-time snapshots (M ≥ 4.5), and saved NTWC/PTWC Atom and CAP messages. The project polygon is `config/pacific_polygon.geojson`. The live feeds have a different time window from the historical samples; the model does not imply that all four sources cover 2010–2025.
+The model covers NOAA HazEL historical tsunamis (2010–2025), a USGS FDSN earthquake sample (2010–2011, M ≥ 6), four saved USGS real-time snapshots, and four NTWC and four PTWC Atom/CAP snapshots. Their coverage periods differ. The saved NOAA sample has 221 records (a preliminary 205 in the project geographic scope; nine without coordinates), and the USGS historical sample has 343 records. These are profiling results, not database row counts.
 
-The current download scripts, the saved samples, `notebooks/01_source_profiling.ipynb`, and `workshop_1/report/main.tex` were reviewed locally. The saved NOAA event files contain 221 records over two pages (200 + 21); the USGS CSV contains 343 rows. The reference USGS real-time snapshot from 7 November contains 726 features; the later saved snapshot from 12 November contains 649. Each saved NTWC/PTWC Atom file contains one entry and has a corresponding CAP file. No separate Workshop 1 guide was found in the repository.
+| `source.source_id` | Observation | External identifier | Evidence format |
+|---|---|---|---|
+| `noaa_hazel` | Historical tsunami record | HazEL `id` | Paginated JSON |
+| `usgs_fdsn` | Catalog earthquake record | CSV `id` | CSV |
+| `usgs_realtime` | Feed earthquake feature | GeoJSON feature `id` | GeoJSON |
+| `ntwc` | NTWC bulletin | CAP `identifier` | Atom entry and linked CAP XML |
+| `ptwc` | PTWC bulletin | CAP `identifier` | Atom entry and linked CAP XML |
 
-## 2. Proposed entities and identity
+The feed or file identifies the source. CAP `sender` is preserved as source data but does not replace the feed identity: the saved PTWC CAP messages report `sender=ntwc@noaa.gov`. Source IDs above are controlled values; they are not the external record IDs.
 
-| Table | Meaning | Identity |
+## 2. Canonical Model and Event Identity
+
+The course's common model has `source`, `ingestion_run`, `ingestion_state`, `event`, `event_group`, and `rejected_record`. This project adds `earthquake`, `tsunami_event`, `tsunami_bulletin`, four NOAA descriptor catalogs, and one `event_relation` table for reviewed or pending links.
+
+**`event` is one normalized observation from one source**, identified internally by generated `event_id`. The proposed constraint is `UNIQUE(source, external_id)` for current observations; `external_id` preserves the original source identifier as text. A later snapshot with the same source ID may update that observation; it does not create a second canonical event. Its `raw_reference` identifies the original saved file and record locator used for the current values, with a content hash when computed. Comparing that hash with the previous hash is the proposed change-detection method. Earlier snapshots remain preserved as raw files; future `ingestion_run` records should reference them. These are design rules, not implemented SQL or ingestion behavior. No separate `source_record` table is proposed because it would duplicate `event` at this stage. A per-version table can be added only if the course later requires queryable revision history.
+
+**`event_group` is a reviewed same-phenomenon grouping**, not a merged observation row. An event has zero or one group; a group is created for at least two observations verified to describe the same real-world phenomenon and has a single `event_type`. Mermaid can show one or more group members, but its cardinality does not fully express this two-member minimum; that minimum is a business rule. For example, an FDSN row and a real-time row may remain two `event` rows while sharing one earthquake group after review. Unverified matches remain separate.
+
+Earthquake, tsunami, and bulletin are three different `event_type` values. A tsunami caused by an earthquake and a bulletin about that earthquake are separate observations and must not be placed in the earthquake's group. `event_relation` stores a typed link between two events: `identity_candidate` (a possible same-phenomenon match awaiting review), `caused_by` (tsunami → earthquake), or `reports_on` (bulletin → earthquake or tsunami). Each link has `pending`, `accepted`, or `rejected` review status and an evidence reference. When an identity candidate is accepted, the observations join the appropriate `event_group`; that membership is the sole source of truth for confirmed identity. The original relation may remain as review evidence, not a second independent identity claim. Accepted causal and informational links remain in `event_relation`. Time and distance alone never confirm identity. A non-seismic tsunami needs no earthquake relation.
+
+## 3. Canonical Field Mapping
+
+`—` means no corresponding source field. These eight fields are required by the course; “nullable” describes the proposed canonical field, not whether every sample has a null value. `event.source` references `source.source_id`.
+
+| Canonical field | Type / nullability | NOAA HazEL | USGS FDSN / real-time | NTWC / PTWC Atom + CAP | Transformation and meaning |
+|---|---|---|---|---|---|
+| `event_id` | Generated opaque ID, PK; required | `id` is external | CSV `id` / feature `id` are external | CAP `identifier` is external; Atom `entry.id` is separate | Generate independently of source IDs. Preserve the original ID as `external_id` and in `raw_reference`. |
+| `source` | Controlled text, FK; required | `noaa_hazel` | `usgs_fdsn` / `usgs_realtime` | `ntwc` / `ptwc`, derived from the feed | Identify the observation's actual source, not a preferred source for a merged event. |
+| `event_type` | `earthquake` / `tsunami` / `bulletin`; required | `tsunami` for HazEL tsunami records | `earthquake` for sampled earthquake records | `bulletin` | Preserve source `type` or CAP `event` separately. A bulletin is not evidence that a tsunami occurred. |
+| `timestamp` | UTC timestamp; nullable | Date and clock components | FDSN `time` / `properties.time` (epoch ms) | CAP `sent` | USGS: earthquake origin. NOAA: event time only when seconds are present; otherwise null and preserve known date/hour/minute with `time_precision`. CAP: bulletin issue time. Never substitute midnight for a date-only record. |
+| `latitude` | WGS84 decimal degrees; nullable | `latitude` | CSV `latitude` / `geometry.coordinates[1]` | CAP `EventLatLon` first value; Atom `geo:lat` fallback | Preserve nulls. CAP coordinates describe the reported earthquake point when supplied, not necessarily the impacted area. |
+| `longitude` | WGS84 decimal degrees; nullable | `longitude` | CSV `longitude` / `geometry.coordinates[0]` | CAP `EventLatLon` second value; Atom `geo:long` fallback | Normalize the canonical value to −180…180; retain the raw value. GeoJSON order is longitude, latitude, depth. |
+| `severity` | Text value; nullable | `maxWaterHeight` when its unit is verified; **not** `eqMagnitude` | `mag` / `properties.mag` | CAP `info.severity` category | Use `severity_scale` and `severity_unit` alongside the value. Earthquake magnitude, tsunami height, and CAP category are not one numeric scale; numeric measurements stay in domain tables. |
+| `raw_reference` | Structured JSON-like object; required for accepted records | JSON file + `items` ID/index | CSV file + row/ID; GeoJSON snapshot + feature ID | CAP file + identifier, with Atom file/entry reference | Include external ID, immutable saved artifact path, record locator, and original URL when available; add a content hash when computed. A filename alone is insufficient. |
+
+Additional `event` fields support the mapping: `external_id` (text, required, unique with `source`), `event_date` (date, nullable), `known_hour` and `known_minute` (integers, nullable), `time_precision` (`day`, `hour`, `minute`, `second`, or `subsecond`; required when a time is known), `severity_scale` and `severity_unit` (text, nullable), `event_group_id` (nullable FK), and derived `in_pacific_ocean` / `in_pacific_scope` booleans. NOAA's `date_utc` and exact `time_utc` in the notebook illustrate why partial clocks need separate fields. `raw_reference` points to the latest accepted source representation, while saved artifacts retain earlier values.
+
+For `severity`, use controlled `severity_scale` values such as `earthquake_magnitude`, `tsunami_max_water_height`, and `cap_severity`. Magnitude has no physical unit; its type (for example `mww`) remains in `earthquake.magnitude_type`. Tsunami height needs a verified length unit; CAP severity is categorical and has no unit. Do not compare or aggregate values across these scales. NOAA `eqMagnitude` belongs to the reported causative earthquake, not the tsunami height. The proposed analytical indicator, if later defined, must be distinct from official CAP severity.
+
+## 4. Domain Tables
+
+Each accepted `event` has exactly one matching domain detail row, determined by `event_type`; each domain row has `event_id` as both PK and FK. The exact-one-across-three rule is a business constraint for later implementation.
+
+| Table | Main fields and source mapping | Important distinction |
 |---|---|---|
-| `event` | One internally identified earthquake, historical tsunami, or bulletin. Holds the eight canonical fields and their interpretation. | Generated `event_id`; never a source ID. |
-| `source_record` | A traceable observation of an event in a saved file. Allows multiple snapshots and multiple sources to support one `event`. | Generated `source_record_id`; unique `(source, original_id, raw_reference)`. |
-| `earthquake` | Earthquake measurements from USGS. | `event_id` is both PK and FK to `event`. |
-| `tsunami_event` | Historical tsunami facts from NOAA HazEL. | `event_id` is both PK and FK to `event`. |
-| `tsunami_bulletin` | One official CAP message and its associated Atom entry. | `event_id` is both PK and FK to `event`. |
-| `noaa_cause`, `noaa_event_validity`, `noaa_region`, `noaa_warning_status` | NOAA descriptor labels, kept separate from CAP classifications. | The integer NOAA descriptor code is each table's PK. |
+| `earthquake` | `magnitude` ← USGS `mag`; `magnitude_type` ← `magType`; `depth_km` ← FDSN `depth` or GeoJSON coordinates `[2]`; `place`, `status`, `net`; `source_updated_at` ← `updated`; nullable `tsunami_bulletin_flag` ← real-time `tsunami` (0/1). | The flag indicates bulletin-related information; it does not confirm a tsunami. `updated` is not origin time. |
+| `tsunami_event` | NOAA `causeCode`, `eventValidity`, `regionCode`, `warningStatusId` as nullable descriptor FKs; `earthquakeEventId` as a NOAA-native ID; `eqMagnitude`, `eqDepth`, `maxWaterHeight`, `numRunups`, `oceanicTsunami`, `country`, `locationName`. | Causative-earthquake magnitude/depth are not tsunami severity. `numRunups` counts records, not height. NOAA-native earthquake ID is not a USGS FK. Unknown or non-seismic causes do not imply an earthquake relation. `warningStatusId` is missing in 169 of 221 saved records. |
+| `tsunami_bulletin` | Center; CAP `identifier`, `sender`, `sent`, `msgType`, `info.event`, `severity`, `urgency`, `certainty`, `expires`, `EventPreliminaryMagnitude`, `EventPreliminaryMagnitudeType`, `EventDepth`, `EventOriginTime`, `EventLocationName`; Atom entry `id`, `updated`, title and CAP link. | CAP `sent` is issue time; Atom `updated` is a source update; `EventOriginTime` is a reported earthquake origin. Preserve the original text depth and parse `depth_km` only with a known unit. A new CAP ID need not revise the same event. |
 
-Each `event` has exactly one of the three domain rows. Every `source_record` belongs to exactly one `event`; an event has one or more source records. Source observations remain distinct from the event they describe. For example, FDSN and real-time records for the same verified earthquake may point to one earthquake event, while a NOAA tsunami, its causative earthquake, and a related bulletin remain **three different events** connected through explicit relationships.
+`tsunami_bulletin.cap_identifier` must equal its `event.external_id`; the Atom ID is separate. NOAA's reported `eqDepth` and `maxWaterHeight` keep their source values while units await metadata confirmation. `tsunami_event` has no direct earthquake FK, and `tsunami_bulletin` has no direct earthquake/tsunami FK: reviewed causal and informational links use `event_relation`. The downloaded run-up page does not require a run-up observation table for this event-level draft.
 
-`event.source` names the source of the selected canonical representation, such as `usgs_fdsn` for an earthquake first represented by its historical catalog row. It is not a list of all contributing sources; `source_record.source` carries each observation's actual source. The selected `event.raw_reference` points to the source row used for its current canonical values. The source records retain other snapshots and their references. These two canonical fields are derived provenance metadata, not fields emitted by the APIs.
-
-## 3. Canonical field mapping
-
-`—` means there is no equivalent source field. `timestamp` is the time of the canonical **event type**: earthquake origin, tsunami occurrence, or bulletin issue. All nullable fields remain null when the source lacks them.
-
-| Canonical field | NOAA HazEL | USGS FDSN CSV | USGS real-time GeoJSON | NTWC/PTWC Atom + CAP | Transformation | Limitations |
-|---|---|---|---|---|---|---|
-| `event_id` | `id` is an external tsunami ID | `id` is an external earthquake ID | `feature.id` is an external earthquake ID | CAP `identifier` is an external message ID; Atom `entry.id` is separate | Generate an internal `event_id`; store every external ID in `source_record.original_id` and the Atom ID in `tsunami_bulletin.atom_entry_id`. | Never join unrelated sources merely because their ID strings match. NOAA `earthquakeEventId` is a NOAA ID, not a USGS ID. |
-| `source` | Derived `noaa_hazel` | Derived `usgs_fdsn` | Derived `usgs_realtime` | Derived `ntwc_cap` or `ptwc_cap` from the feed used | Record the selected source on `event`; record every observation's source on `source_record`. | CAP `sender` identifies the publisher but is not a stable substitute for the feed source; one sampled PTWC CAP has `sender=ntwc@noaa.gov`. |
-| `event_type` | Derived `tsunami` from the events endpoint | CSV `type` (sample: `earthquake`) | `properties.type` (sample: `earthquake`) | CAP `info.event` describes the message topic; derived type `bulletin` | Use the controlled types `earthquake`, `tsunami`, `bulletin`. Preserve source wording in the domain row or raw source. | CAP `msgType=Alert` does not prove an active tsunami warning or an observed tsunami. |
-| `timestamp` | `year`, `month`, `day`, `hour`, `minute`, `second` | `time` | `properties.time` in Unix milliseconds | CAP `sent` for the bulletin; Atom `entry.updated` is revision time | Parse to UTC. Assemble NOAA components only to the available precision. Keep `event_date` and `time_precision`; keep `timestamp` null for a date-only NOAA event. | CAP `EventOriginTime` is a *separate*, preliminary earthquake-origin field; USGS `updated`, real-time `properties.updated`, and Atom `entry.updated` are update times. |
-| `latitude` | `latitude` | `latitude` | `geometry.coordinates[1]` | CAP `EventLatLon` first number; Atom `geo:lat` if CAP lacks it | Parse to WGS84 decimal degrees; null when absent. | NOAA has 9 events with missing coordinates; a bulletin's coordinates describe the reported earthquake location. |
-| `longitude` | `longitude` | `longitude` | `geometry.coordinates[0]` | CAP `EventLatLon` second number; Atom `geo:long` if CAP lacks it | Parse to WGS84 decimal degrees; normalize to −180…180. | GeoJSON order is longitude, latitude, depth. The Pacific polygon uses a separate shifted longitude only for its point-in-polygon test. |
-| `severity` | `maxWaterHeight` for a tsunami, if present; `eqMagnitude` is *causative earthquake* information | `mag` with `magType` | `properties.mag` with `properties.magType` | CAP `info.severity` (categorical); preliminary magnitude is separate | Store the canonical value as text with `severity_scale` and optional `severity_unit`; keep numeric measurements in domain columns. Examples: `tsunami_max_water_height`/`m`, `earthquake_magnitude`/magnitude type, `cap_severity`/CAP category. | The three scales are not directly comparable. Verify the NOAA water-height unit against its metadata before relying on `m`; NOAA has no magnitude type for `eqMagnitude`. |
-| `raw_reference` | Saved JSON path plus `items` index or NOAA ID | Saved CSV path plus row or ID | Saved GeoJSON snapshot path plus feature ID | Saved CAP path plus CAP identifier; retain Atom path/entry ID | Derive a local path and record locator, e.g. `workshop_1/samples/…#id=…`; retain it on `event` and `source_record`. | A file name alone does not locate one row. Later revisions in other snapshots receive separate source-record references. |
-
-`severity` is a display/mapping field rather than a common numeric measure. Its typed values must not be aggregated across event types. For analyses comparing earthquakes, use `earthquake.magnitude` and its `magnitude_type`. Keep tsunami height and CAP severity in their own columns.
-
-## 4. Data dictionary and keys
-
-`PK` = primary key; `FK` = foreign key. “Nullable” is a proposed rule, not a claim that every current sample has a null there. Derived fields are identified below.
-
-### `event`
-
-| Field | Proposed type / nullability | Origin and purpose |
-|---|---|---|
-| `event_id` | Generated identifier, PK | Internal identity independent of source IDs. |
-| `source` | Text, required | Derived selected source (`noaa_hazel`, `usgs_fdsn`, `usgs_realtime`, `ntwc_cap`, `ptwc_cap`). |
-| `event_type` | Text, required | Derived controlled type: `earthquake`, `tsunami`, or `bulletin`. |
-| `timestamp` | UTC timestamp, nullable | Type-specific time; null if no usable time of day. |
-| `event_date` | Date, nullable | Preserves a NOAA date when precise `timestamp` is unavailable. |
-| `time_precision` | Text, required | Derived `date`, `minute`, `second`, or `subsecond`, as supported by the source. |
-| `latitude`, `longitude` | Decimal degrees, nullable | WGS84; longitude normalized to −180…180. |
-| `severity` | Text, nullable | Typed display value; its numeric counterpart remains in the domain table. |
-| `severity_scale` | Text, nullable | `earthquake_magnitude`, `tsunami_max_water_height`, or `cap_severity`. |
-| `severity_unit` | Text, nullable | Magnitude type (e.g. `mww`), `m` if verified for water height, or null for CAP category. |
-| `raw_reference` | Text, required | Derived locator of the selected original row/message in a saved file. |
-
-The `event_type` controls which domain table is present. A possible database implementation would enforce exactly one matching domain row, but this draft does not prescribe a migration or trigger.
-
-### `source_record`
-
-| Field | Proposed type / nullability | Origin and purpose |
-|---|---|---|
-| `source_record_id` | Generated identifier, PK | Identity of this saved observation. |
-| `event_id` | FK → `event.event_id`, required | The event supported by the observation. |
-| `source` | Text, required | Actual source family/feed, independent of `event.source`. |
-| `original_id` | Text, required | NOAA `id`, USGS `id`/`feature.id`, or CAP `identifier`, converted to text without changing its content. |
-| `raw_reference` | Text, required | Saved file path plus record locator. |
-
-Proposed uniqueness: `(source, original_id, raw_reference)` to avoid ingesting the same row twice while permitting another saved snapshot of the same source ID. Comparison of values across snapshots is a later ingestion decision; this table only defines traceability. For an Atom/CAP message, the CAP identifier is `original_id`; the Atom entry ID and Atom file are retained in `tsunami_bulletin` and the raw files.
-
-### `earthquake`
-
-| Field | Proposed type / nullability | Origin and purpose |
-|---|---|---|
-| `event_id` | PK, FK → `event.event_id` | Exactly one earthquake detail row for this event. |
-| `magnitude` | Decimal, nullable | FDSN `mag` or real-time `properties.mag`. |
-| `magnitude_type` | Text, nullable | FDSN `magType` or real-time `properties.magType`. |
-| `depth_km` | Decimal, nullable | FDSN `depth` or real-time `geometry.coordinates[2]`. |
-| `place` | Text, nullable | FDSN `place` or real-time `properties.place`. |
-| `status` | Text, nullable | FDSN `status` or real-time `properties.status`. |
-| `network` | Text, nullable | FDSN `net` or real-time `properties.net`. |
-| `source_updated_at` | UTC timestamp, nullable | FDSN `updated` or real-time `properties.updated`; not the origin time. |
-| `tsunami_bulletin_flag` | Boolean, nullable | Real-time `properties.tsunami` (0/1); bulletin indicator only, not proof of a tsunami. |
-
-### `tsunami_event`
-
-| Field | Proposed type / nullability | Origin and purpose |
-|---|---|---|
-| `event_id` | PK, FK → `event.event_id` | Exactly one historical tsunami detail row for this event. |
-| `cause_code` | Integer, nullable FK → `noaa_cause.code` | NOAA `causeCode`. |
-| `event_validity` | Integer, nullable FK → `noaa_event_validity.code` | NOAA `eventValidity`; includes negative code −1. |
-| `region_code` | Integer, nullable FK → `noaa_region.code` | NOAA `regionCode`. |
-| `warning_status_id` | Integer, nullable FK → `noaa_warning_status.code` | NOAA `warningStatusId`, absent in 169 of 221 saved events. |
-| `noaa_earthquake_event_id` | Integer, nullable; **not** a USGS FK | NOAA `earthquakeEventId`; a source-native link whose referenced NOAA earthquake record is not in these tsunami files. |
-| `causative_earthquake_event_id` | Nullable FK → `earthquake.event_id` | Only set after a reviewed cross-source association. A non-earthquake tsunami leaves it null. |
-| `reported_eq_magnitude` | Decimal, nullable | NOAA `eqMagnitude`; causative earthquake measurement, not the tsunami's severity. |
-| `reported_eq_depth` | Decimal, nullable | NOAA `eqDepth`; likely km, unit still needs external confirmation. |
-| `max_water_height` | Decimal, nullable | NOAA `maxWaterHeight`; expected meters, verify source unit. |
-| `num_runups` | Integer, nullable | NOAA `numRunups`; not the downloaded runup observation table. |
-| `oceanic_tsunami` | Boolean, nullable | NOAA `oceanicTsunami`. |
-| `country`, `location_name` | Text, nullable | NOAA `country`, `locationName`. |
-
-The sample also contains one page of runup observations, but this draft does not add a runup table: the requested event-level model only needs `num_runups` and `max_water_height`. A future observation-level requirement can justify that table.
-
-### `tsunami_bulletin`
-
-| Field | Proposed type / nullability | Origin and purpose |
-|---|---|---|
-| `event_id` | PK, FK → `event.event_id` | Exactly one bulletin detail row for this event. |
-| `center` | Text, required | Derived from the saved NTWC or PTWC feed. |
-| `atom_entry_id` | Text, nullable | Atom `entry.id`; distinct from CAP `identifier`. |
-| `atom_reference` | Text, nullable | Saved Atom file path and entry locator. |
-| `cap_identifier` | Text, required | CAP `identifier`; also the `source_record.original_id`. |
-| `sender` | Text, nullable | CAP `sender`; keep source value even if it differs from the feed center. |
-| `sent_at` | UTC timestamp, nullable | CAP `sent`; canonical bulletin issue time when available. |
-| `atom_updated_at` | UTC timestamp, nullable | Atom `entry.updated`; not earthquake origin. |
-| `msg_type` | Text, nullable | CAP `msgType` (e.g. `Alert`); not a tsunami outcome. |
-| `cap_event`, `cap_severity`, `urgency`, `certainty` | Text, nullable | CAP `info.event`, `info.severity`, `info.urgency`, `info.certainty`. |
-| `title` | Text, nullable | Atom `entry.title`. |
-| `cap_link` | Text, nullable | Atom `entry.link` URL to the corresponding CAP message. |
-| `reported_origin_at` | UTC timestamp, nullable | CAP `EventOriginTime`; preliminary and potentially erroneous. |
-| `preliminary_magnitude`, `preliminary_magnitude_type` | Decimal / text, nullable | CAP `EventPreliminaryMagnitude`, `EventPreliminaryMagnitudeType`. |
-| `reported_depth_km` | Decimal, nullable | Parse CAP `EventDepth` only when the unit is explicitly kilometers. |
-| `earthquake_event_id` | Nullable FK → `earthquake.event_id` | Set only for a reviewed bulletin–earthquake association. |
-
-The CAP `EventLatLon` supplies canonical bulletin coordinates when present; Atom `geo:lat`/`geo:long` is the fallback. Retain both original forms in their saved files. There is no direct bulletin-to-tsunami FK yet: a bulletin may be an information statement about an earthquake without an observed tsunami.
-
-### NOAA reference tables
+### NOAA descriptor catalogs
 
 Each table has **`code` integer PK** and **`description` text required**. Descriptor JSON `items[].id` values are strings (including `"-1"`), whereas the event codes are integers; parse descriptor IDs to integers before joining. Each FK from `tsunami_event` is nullable. Missing codes are null, not synthetic “unknown” codes: NOAA's explicit `0` or `-1` categories keep their actual meanings.
 
@@ -144,35 +70,47 @@ Each table has **`code` integer PK** and **`description` text required**. Descri
 
 The saved 221 tsunami events use only a subset of each descriptor table: all their non-null `causeCode`, `eventValidity`, `regionCode`, and `warningStatusId` values occur in the matching descriptors. The four tables preserve NOAA's definitions without conflating historical `warningStatusId` with CAP `info.severity` or `msgType`.
 
-## 5. Relationships and cardinality
+## 5. Source and Ingestion Metadata
 
-| Relationship | Cardinality and optionality | Rule |
+These are conceptual records required by the course, not implemented SQL tables.
+
+| Table | Key fields | Cardinality and use |
 |---|---|---|
-| `event` → `source_record` | One event has **1..many** source records; each source record has **exactly 1** event. | Different snapshots can retain separate original references. |
-| `event` → each domain table | An event has **exactly 1** row in its matching domain table and **0** in the other two; each domain row has **exactly 1** event. | `event_type` determines the matching table. |
-| `earthquake` → `tsunami_event` | One earthquake can cause **0..many** historical tsunami events; a tsunami has **0..1** linked earthquake. | Non-earthquake causes and unverified matches remain unlinked. |
-| `earthquake` → `tsunami_bulletin` | One earthquake can have **0..many** bulletins; a bulletin has **0..1** linked earthquake. | A bulletin is a separate message, regardless of its CAP `msgType`. |
-| Each NOAA descriptor → `tsunami_event` | One code can label **0..many** tsunami events; each tsunami has **0..1** code from each descriptor. | Four independent nullable FKs. |
+| `source` | `source_id` PK; name, URL, format, license/attribution | One source has 0..many `event` observations and 0..many `ingestion_run` records. The five controlled source IDs are listed in Section 1. |
+| `ingestion_run` | Generated `run_id` PK; `source_id` FK; mode (`historical`/`incremental`), start/end UTC, status, counts (read/accepted/updated/rejected), input artifact references | One run belongs to one source and can have 0..many rejected records. It records what a future ingestion actually did. |
+| `ingestion_state` | `source_id` PK/FK; watermark value and meaning (nullable), `last_successful_run_id` nullable FK | At most one state per source. NOAA may have no incremental watermark. A watermark advances only after a successful run as a proposed contract rule. |
+| `rejected_record` | Generated `rejection_id` PK; `source_id` FK; `run_id` FK; external ID if available, reason, `raw_reference` | A rejected source row remains traceable without becoming an `event`. Source and run must agree. |
 
-## 6. Preliminary normalization rules
+An accepted `event` stores the current normalized source observation; a later accepted revision retains its `event_id` and changes its current fields. The raw artifact references in `ingestion_run` and `event.raw_reference` allow the saved snapshots to be inspected without duplicating canonical rows. A queryable per-version history remains an open requirement, not an assumed implementation.
 
-1. **UTC and precision:** Parse FDSN `time`/`updated`, Atom `updated`, CAP `sent`/`EventOriginTime`, and USGS real-time Unix milliseconds into UTC. Assemble NOAA year/month/day into `event_date`. If NOAA hour and minute exist, form a UTC timestamp and record `minute` precision when seconds are absent; if hour or minute is absent, leave `timestamp` null and keep `event_date` with `date` precision. Nine of the 221 NOAA events have hour and minute but no second, and 23 have no hour or minute. Do not substitute midnight for an unknown time. Preserve CAP origin separately from CAP issue time; the saved PTWC message `PHEB-1-26297050` gives an origin one day earlier than the likely matching USGS event `us6000u4r9`.
-2. **Coordinates and geographic scope:** Store WGS84 latitude/longitude in decimal degrees and normalize longitude with `((lon + 180) % 360) - 180`. Keep missing coordinates null. The polygon uses transformed positive longitudes (`lon - 360`) only during the point-in-polygon test; do not store those polygon-axis values as canonical longitude. Apply the polygon to classify geographic scope, keeping raw records available for audit. NOAA region codes and the FDSN query rectangle are prefilters, not substitutes for the polygon. Nine NOAA sample events lack coordinates.
-3. **Magnitude, depth, and height:** Keep magnitude as a number and its source magnitude type as text. Store USGS depth in km. Parse CAP `EventDepth` as km only when the text explicitly says `kilometers`; preserve the original text in the raw file. Treat NOAA `eqDepth` as a reported value with unit pending confirmation. Keep NOAA `maxWaterHeight` distinct from earthquake depth and magnitude; its meter unit also needs source-metadata confirmation.
-4. **Severity and official messages:** Type every `event.severity` using `severity_scale` and `severity_unit`. Never aggregate earthquake magnitudes, tsunami heights, and CAP severity categories as one numeric series. CAP `severity`, `urgency`, `certainty`, and NOAA historical warning codes are distinct concepts. An internal analytical indicator, if later designed, must be stored separately from an official bulletin and must not be presented as an official warning.
-5. **IDs and duplicate control:** Preserve source IDs exactly as strings in `source_record`. Repeated `(source, original_id, raw_reference)` is one observation, while the same ID in a later snapshot is another observation of a potentially updated event. Reconcile FDSN and real-time rows as one earthquake only after confirming source identity and event details. A NOAA tsunami and a USGS earthquake retain distinct `event_id` values; a time-and-distance match is only a candidate until reviewed. Preserve NOAA `earthquakeEventId` without treating it as a USGS FK.
+## 6. Relationships and Cardinalities
 
-## 7. Decisions and open checks
+| Link | Cardinality | Rule |
+|---|---|---|
+| `source` → `event` | One source to 0..many events; each event has exactly one source. | `(source, external_id)` identifies a current observation. |
+| `event_group` → `event` | One group to 2..many reviewed observations (business rule); an event belongs to 0..1 group. | Only same-phenomenon, same-type observations join a group. |
+| `event` → domain detail | One event to exactly one row across the three domain tables. | The chosen table matches `event_type`. |
+| `event` → `event_relation` | An event can be either endpoint in 0..many links; each link has exactly two endpoint events. | `identity_candidate` retains review evidence; confirmed same-phenomenon identity is expressed by `event_group` membership. `caused_by` and `reports_on` express reviewed cross-type links. |
+| NOAA descriptor → `tsunami_event` | One code to 0..many tsunami rows; each tsunami has 0..1 code per descriptor. | Four independent nullable FKs; missing is null, not a made-up code. |
+| `source` → `ingestion_run` / `ingestion_state` | 0..many runs and 0..1 state per source. | Each state may point to 0..1 last successful run for that same source. |
+| `ingestion_run` → `rejected_record` | One run to 0..many rejected rows; each rejected row has exactly one run and source. | Retain the original locator and rejection reason. |
 
-**Supported by the saved data:** the eight canonical fields can be populated or explicitly left null; the four NOAA descriptor IDs can be converted from string to integer; FDSN and real-time GeoJSON expose different representations of USGS earthquakes; Atom and CAP expose distinct message IDs and times; all four NOAA code relationships admit missing values. The model keeps the bulletin independent of tsunami occurrence.
+Two verified USGS observations can share an earthquake group. A historical NOAA tsunami can be linked to a reviewed earthquake by `caused_by`; several bulletins can point to one earthquake with `reports_on`. A landslide tsunami needs no earthquake link. The notebook found 28 NOAA–USGS candidate links (two ambiguous), two CAP–USGS candidates inside the normal exploratory window, and one PTWC diagnostic candidate with an approximately one-day time discrepancy. Those counts are evidence for review work, not automatic `event_group` membership or confirmed relations.
 
-**Requires validation before implementation:**
+## 7. Normalization Rules
 
-- Confirm NOAA `eqDepth` and `maxWaterHeight` units in source metadata. Until then, keep the reported values and avoid irreversible unit assumptions.
-- Decide the review rule for linking FDSN, real-time, NOAA tsunami, and CAP candidates. The notebook's 15-minute/100-km rule is exploratory; the PTWC CAP date error shows why automatic linking is unsafe.
-- Check behavior when a source ID is corrected, a CAP message is revised, or more than one earthquake may have contributed to a tsunami. A many-to-many association table is justified only if real cases require it.
-- Confirm whether the selected canonical values should follow FDSN, the latest real-time revision, or a documented precedence rule when both describe one earthquake.
-- Reconcile the historical script's current `itemsPerPage=500` parameter with cached NOAA files containing 200 + 21 events over two pages. The draft uses the saved evidence; a forced future download may have a different pagination layout.
-- Verify the geographical polygon's boundary policy and handling of missing coordinates. In the saved evidence, it excludes 7 geolocated NOAA events and 18 FDSN events; 9 NOAA events cannot be located.
+1. **Time:** Parse USGS origin and update times, CAP `sent`/`expires`/reported origin, and Atom `updated` into UTC as distinct fields. USGS real-time timestamps are Unix milliseconds. NOAA has day, hour, minute, and second precision; preserve `event_date`, known clock components, and `time_precision`. A date-only NOAA event has null `timestamp`. The PTWC origin discrepancy requires review, not silent correction. One saved NTWC CAP bulletin has `expires` 11 hours before `sent`; preserve and flag both values.
+2. **Coordinates and scope:** Store WGS84/EPSG:4326 source coordinates and normalize canonical longitude to −180…180 without changing the raw value. Section 4 of the notebook loads `config/geographic_reference/goas_v01.shp` from [Marine Regions](https://www.marineregions.org/sources.php), selecting `North Pacific Ocean`, `South Pacific Ocean`, and the Shapefile's literal `South China and Easter Archipelagic Seas` (published name: **South China and Eastern Archipelagic Seas**). `in_pacific_ocean` means inside these official polygons; `in_pacific_scope` also allows an approximate 100 km geodesic influence from their maritime boundaries. This project margin is not official and is not only a coastline buffer. Spatial tests handle the antimeridian separately. Invalid/missing coordinates are outside scope and counted separately; the notebook's `in_pacific` is an alias, not a third rule.
+3. **Measures:** Keep magnitude with its type, USGS depth in km, source NOAA `eqDepth`/`maxWaterHeight` values pending unit validation, and CAP depth text plus parsed km only when explicit. Keep `numRunups` as a count. Never treat USGS `tsunami=1`, NOAA `warningStatusId`, or CAP severity as interchangeable or as proof of tsunami occurrence.
+4. **IDs and revisions:** Preserve source IDs as strings and propose `UNIQUE(source, external_id)` for current observations. Compare content hashes for the same source ID to detect changed source records without treating a later snapshot as a new natural event; keep previous hashes and snapshots in the raw/audit trail. A missing USGS feed feature is not proof of deletion. Keep the original file and record locator for each accepted or rejected source row. A changed CAP identifier is a new bulletin observation until a same-incident review says more.
+5. **Cross-source review:** NOAA partial times are intervals, not invented exact timestamps. The notebook's exploratory match uses ±15 minutes for exact NOAA times, at most 100 km between candidate epicenters, and a magnitude difference of at most 0.5 where required. These 100 km are an association tolerance independent of the monitoring margin. A diagnostic two-day search for the PTWC discrepancy is not a routine matching rule. Keep ambiguous links as candidates until reviewed.
 
-The accompanying diagram is in `docs/er_diagram.md`.
+## 8. Open Design Decisions
+
+- Confirm NOAA `eqDepth` and `maxWaterHeight` units against source metadata before irreversible conversion or numeric severity use.
+- Define the evidence and reviewer workflow for same-phenomenon grouping, causal links, CAP subjects, and ambiguous candidates. Resolve how to handle changed external IDs and multiple possible causes.
+- Decide whether prior revisions must be queryable in a separate version table; the current draft relies on immutable raw captures and ingestion-run references.
+- Specify source-specific watermarks, overlap windows, content hashes, failure recovery, and idempotent writes in the Ingestion Contract. None is claimed implemented here.
+- Decide how to validate the 100 km maritime-scope approximation and boundary behavior before making the preliminary NOAA geographic counts final.
+
+The matching conceptual diagram is in `docs/er_diagram.md`.
