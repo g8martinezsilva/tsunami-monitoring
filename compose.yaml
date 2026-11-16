@@ -52,6 +52,8 @@ services:
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Schema and reference data, applied automatically when the volume is first created
+      - ./sql:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
       test:
