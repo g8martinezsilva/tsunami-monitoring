@@ -1,0 +1,318 @@
+%% Report layout adapted from the Computer Science report template
+%% (Dr Todd R. Jones, University of Reading, based on a template by Dr Varun Ojha),
+%% as required by the course. The template's CS_report.sty settings are included
+%% below so that the whole report lives in this file.
+\documentclass[a4paper,11pt,oneside]{book}
+
+%% ----- Template settings (CS_report.sty) -----
+\usepackage[margin=1.2in]{geometry}
+
+% Sans-serif font
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\renewcommand*\familydefault{\sfdefault}
+\usepackage{slantsc}
+\usepackage{relsize}
+\usefont{T1}{lmss}{m}{n}\selectfont
+\DeclareFontShape{T1}{lmss}{m}{sc}{<->ssub*lmss/m/n}{}
+
+% Math
+\usepackage{sansmath}
+\sansmath
+\usepackage[cmex10]{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+% Code listings
+\usepackage[utf8]{inputenc}
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{codegreen}{rgb}{0,0.6,0.1}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codeblue}{rgb}{0.10,0.00,1.00}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{1.0,1.0,1.0}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codeblue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    frame=none
+}
+\lstset{style=mystyle}
+
+% Figures and tables
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{multirow}
+\usepackage{rotating}
+\usepackage{makecell}
+\usepackage{booktabs}
+
+% List of abbreviations
+\usepackage{enumitem}
+\newlist{abbrv}{itemize}{1}
+\setlist[abbrv,1]{label=,labelwidth=1in,align=parleft,itemsep=0.1\baselineskip,leftmargin=!}
+
+% Links and references
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink]{cleveref}
+\definecolor{DarkBlue}{rgb}{0.00,0.00,0.50}
+\hypersetup{colorlinks=true,
+            linkcolor=blue,
+            filecolor=magenta,
+            urlcolor=cyan,
+            citecolor=DarkBlue,
+            pdftitle={Tsunami Monitoring System -- Workshop 2},
+            }
+
+% Bibliography: the template's numbered style (natbib numbers)
+\usepackage[numbers]{natbib}
+\usepackage[nottoc]{tocbibind}
+\renewcommand{\bibname}{References}
+
+% Appendices
+\usepackage[toc]{appendix}
+
+%% ----- Additions for this report -----
+\usepackage{tabularx}
+\usepackage{float}
+\renewcommand{\arraystretch}{1.25}
+% Long file names and code words: allow looser lines and breaks in paths at _ and .
+\setlength{\emergencystretch}{3em}
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks\do\_\do\.}
+
+% Red reminder. Search for "TODO" before submitting.
+\providecommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\begin{document}
+
+    \captionsetup[figure]{margin=1.5cm,font=small,name={Figure},labelsep=colon}
+    \captionsetup[table]{margin=1.5cm,font=small,name={Table},labelsep=colon}
+
+    \frontmatter
+
+    % -------------------------------------------------------------------
+    % Title page
+    % -------------------------------------------------------------------
+    \begin{titlepage}
+        \begin{center}
+            \includegraphics[width=3cm]{figures/ud.png}\\[0.5cm]
+            {\LARGE Universidad Distrital Francisco Jos\'e de Caldas\\[0.5cm]
+            School of Engineering -- Computer Engineering Program}\\[2cm]
+
+            \linespread{1.2}\huge {
+                Tsunami Monitoring System\\[0.3cm]
+                \Large Workshop No.\ 2: Technical Architecture, Historical Ingestion and Bronze/Silver Pipeline
+            }
+            \linespread{1}~\\[2cm]
+
+            {\Large Team 8}\\[0.5cm]
+            {\large
+            \begin{tabular}{ll}
+                Lina Moreno & 20231020133 \\
+                Jaider \'Avila & 20231020200 \\
+                Gabriela Mart\'inez & 20231020205 \\
+            \end{tabular}}\\[1cm]
+
+            {\large \emph{Professor:} Eng.\ Carlos Andr\'es Sierra, M.Sc.}\\[1cm]
+
+            \large A report submitted for Workshop No.\ 2 of the course\\
+            \textit{Data Analysis Programming}, Semester 2026-II\\[0.3cm]
+            \small
+            Repository: \url{https://github.com/g8martinezsilva/tsunami-monitoring}
+            \vfill
+
+            \today
+        \end{center}
+    \end{titlepage}
+
+    % -------------------------------------------------------------------
+    % Declaration
+    % -------------------------------------------------------------------
+    \newpage
+    \thispagestyle{empty}
+    \chapter*{\Large Declaration}
+    We, Lina Moreno, Jaider \'Avila and Gabriela Mart\'inez, of the Computer Engineering Program, Universidad Distrital Francisco Jos\'e de Caldas, confirm that this is our own work and that figures, tables, equations, code snippets and illustrations in this report are original and have not been taken from any other person's work, except where the works of others have been explicitly acknowledged, quoted, and referenced. Data from external sources are cited with their licenses.
+    ~\\[1cm]
+    \begin{flushright}
+    Lina Moreno\\
+    Jaider \'Avila\\
+    Gabriela Mart\'inez
+
+    \today
+    \end{flushright}
+
+    % -------------------------------------------------------------------
+    % Abstract (executive summary)
+    % -------------------------------------------------------------------
+    \chapter*{Abstract}
+    \addcontentsline{toc}{chapter}{Abstract}
+    \todo{Executive summary: technical approach, stack decisions, pipeline design and main results.}
+
+    % -------------------------------------------------------------------
+    % Contents, list of figures, list of tables, abbreviations
+    % -------------------------------------------------------------------
+    \tableofcontents
+    \listoffigures
+    \listoftables
+
+    \chapter*{List of Abbreviations}
+    \chaptermark{List of Abbreviations}
+    \begin{abbrv}
+        \item[CAP]      Common Alerting Protocol
+        \item[DAG]      Directed Acyclic Graph (Airflow workflow)
+        \item[FDSN]     International Federation of Digital Seismograph Networks
+        \item[HazEL]    NCEI Hazard Event Database (Global Historical Tsunami Database interface)
+        \item[NCEI]     NOAA National Centers for Environmental Information
+        \item[NOAA]     National Oceanic and Atmospheric Administration
+        \item[NTWC]     National Tsunami Warning Center (Palmer, Alaska)
+        \item[PTWC]     Pacific Tsunami Warning Center (Honolulu, Hawaii)
+        \item[USGS]     United States Geological Survey
+        \item[UTC]      Coordinated Universal Time
+    \end{abbrv}
+
+    % -------------------------------------------------------------------
+    % Main chapters
+    % -------------------------------------------------------------------
+    \mainmatter
+
+\chapter{Introduction}
+\label{ch:introduction}
+
+\section{Workshop Scope}
+\todo{Goal of Workshop 2: architecture, Docker stack, database schema and historical ingestion with validation and quarantine, organized as the Bronze and Silver layers of a medallion architecture. Incremental ingestion and scheduling remain for Workshop 3.}
+
+\section{Changes Since Workshop 1}
+\todo{Decisions carried over from the Workshop 1 data contract and what changed (for example, the Bronze folder and the Marine Regions download).}
+
+\chapter{Technical Architecture}
+\label{ch:architecture}
+
+\section{Architecture Diagram}
+\todo{Full diagram with sources, Airflow scheduler, Bronze, Silver, Gold (planned), database and dashboard (planned), with layer boundaries labeled.}
+
+\section{Components}
+\todo{For each component: purpose, technology, inputs, outputs and interactions with the adjacent components.}
+
+\section{Technology Choices}
+\todo{Rationale for Airflow, Docker Compose, PostgreSQL/PostGIS, Pandas or Polars, and Parquet.}
+
+\section{File Nomenclature}
+\todo{Bronze \texttt{source\_YYYYMMDD\_HHMMSS.ext} and Silver \texttt{topic\_YYYYMMDD\_HHMMSS.parquet}, and how each Silver file is traced to its Bronze files.}
+
+\chapter{Methodology}
+\label{ch:methodology}
+
+\section{Preprocessing Pipeline (Bronze to Silver)}
+\subsection{Missing Values}
+\todo{Strategy per field (drop, keep NULL, flag), based on the Workshop 1 profiling.}
+\subsection{Data Types and Units}
+\todo{Target types for timestamps, coordinates, magnitudes, depths and categorical codes; UTC and unit rules.}
+\subsection{Validation and Quarantine}
+\todo{Validation rules (coordinate ranges, timestamps, required fields, CAP \texttt{expires} $\geq$ \texttt{sent}) and how rejected records are stored.}
+\subsection{Outliers}
+\todo{IQR or Z-score checks on numeric fields, and which extreme values are real (for example, the 481~m Tracy Arm run-up).}
+\subsection{Deduplication}
+\todo{Duplicate keys within a source and across ingestion batches.}
+\subsection{Silver Schema}
+\todo{Field names, types and required fields of each Silver Parquet file.}
+
+\section{Database Schema}
+\todo{Tables created from the canonical model and the ER diagram of Workshop 1.}
+
+\section{Docker Stack}
+\todo{Services (Airflow webserver, scheduler, triggerer, metadata database, PostGIS), volumes, networking and setup instructions.}
+
+\section{Airflow DAGs}
+\subsection{Bronze Ingestion DAG}
+\todo{Tasks, schedule, error handling, logging and outputs of \texttt{bronze\_ingestion\_dag.py}.}
+\subsection{Silver Processing DAG}
+\todo{FileSensor configuration (\texttt{poke\_interval}, \texttt{timeout}), tasks and outputs of \texttt{silver\_processing\_dag.py}.}
+\subsection{Idempotency}
+\todo{Why running a DAG twice for the same period produces no duplicates.}
+
+\chapter{Results}
+\label{ch:results}
+
+\section{Historical Load}
+\todo{Records read, accepted, rejected and stored per source.}
+
+\section{Pipeline Evidence}
+\todo{Screenshots of successful Airflow runs, sample Bronze files and sample Silver Parquet content.}
+
+\chapter{Discussion}
+\label{ch:discussion}
+
+\section{Challenges and Decisions}
+\todo{Implementation problems found and how they were solved.}
+
+\chapter{Conclusions and Open Questions}
+\label{ch:conclusions}
+\todo{Main results of Workshop 2 and what remains for Workshop 3.}
+
+\chapter{Reflection}
+\label{ch:reflection}
+\todo{Team reflection on Workshop 2.}
+
+    % -------------------------------------------------------------------
+    % References
+    % -------------------------------------------------------------------
+\begin{thebibliography}{9}
+\bibitem{hazel} National Geophysical Data Center / World Data Service. \emph{NCEI/WDS Global Historical Tsunami Database}. NOAA National Centers for Environmental Information. doi:10.7289/V5PN93H7. Accessed through the HazEL API, \url{https://www.ngdc.noaa.gov/hazel/view/swagger}, 8 November 2026.
+\bibitem{usgsfdsn} U.S.\ Geological Survey. \emph{API Documentation -- Earthquake Catalog}. \url{https://earthquake.usgs.gov/fdsnws/event/1/}. Accessed 8 November 2026.
+\bibitem{usgscredit} U.S.\ Geological Survey. \emph{Acknowledging or Crediting USGS}. \url{https://www.usgs.gov/information-policies-and-instructions/acknowledging-or-crediting-usgs}. Accessed 8 November 2026.
+\bibitem{usgsfeed} U.S.\ Geological Survey. \emph{Real-time Notifications, Feeds, and Web Services (GeoJSON summary feed)}. \url{https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php}. Accessed 7 and 9 November 2026.
+\bibitem{hazelforms} NOAA National Centers for Environmental Information. \emph{HazEL tsunami event search} and \emph{earthquake search} forms. \url{https://www.ngdc.noaa.gov/hazel/view/hazards/tsunami/event-search} and \url{https://www.ngdc.noaa.gov/hazel/view/hazards/earthquake/search}. Accessed 16 November 2026.
+\bibitem{tsunamigov} NOAA National Weather Service, Tsunami Warning Centers. \emph{Tsunami event feeds}. \url{https://www.tsunami.gov/}. Accessed 7 and 9 November 2026.
+\bibitem{marineregions}
+Flanders Marine Institute (2021).
+\emph{Global Oceans and Seas, version 1}.
+Marine Regions.
+\url{https://doi.org/10.14284/542}.
+Licensed under CC BY 4.0.
+Accessed 16 November 2026.
+
+\bibitem{taupo}
+Smithsonian Institution, Global Volcanism Program (2022).
+\emph{Report on Taupo (New Zealand),
+30 November--6 December 2022}.
+\url{https://volcano.si.edu/showreport.cfm?gvpvar=GVP.WVAR20221130-241070}.
+
+\bibitem{tracy}
+Shugar, D. H., et al.\ (2026).
+\emph{A 481 m-high landslide-tsunami in a
+cruise ship--frequented Alaska fjord}.
+\textit{Science}. doi:10.1126/science.aec3187.
+\url{https://doi.org/10.1126/science.aec3187}.
+Accessed 16 November 2026.
+\bibitem{workshop1} Team 8. \emph{Tsunami Monitoring System -- Workshop No.~1: Hazard Definition, Source Validation, and Data Contract}. Universidad Distrital Francisco Jos\'e de Caldas, 2026. \url{https://github.com/g8martinezsilva/tsunami-monitoring/tree/workshop-1}.
+% TODO: add citations for Apache Airflow, Docker Compose, PostgreSQL/PostGIS, Apache Parquet and the Python libraries used.
+\end{thebibliography}
+
+    % -------------------------------------------------------------------
+    % Appendices
+    % -------------------------------------------------------------------
+    \begin{appendices}
+\chapter{Sample Records}
+\label{app:samples}
+\todo{Short excerpts of Bronze files and Silver Parquet rows.}
+
+\chapter{Reproducing the Workshop 2 Results}
+\label{app:reproduce}
+\todo{Commands to start the Docker stack, trigger the DAGs and inspect the outputs.}
+    \end{appendices}
+
+\end{document}

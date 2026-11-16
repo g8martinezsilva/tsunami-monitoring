@@ -34,7 +34,10 @@ Workshop 1 profiles saved samples from these four source families. Access, sched
 src/           Ingestion package (sources, normalization, storage)
 ingest.py      Command-line entry point
 config/        Source configuration (sources.yaml) and geographic reference
-data/raw/      Raw landing zone (git-ignored)
+datalake_bronze/ Bronze layer: raw landing zone (git-ignored except samples)
+datalake_silver/ Silver layer: cleaned Parquet files
+datalake_gold/   Gold layer: aggregates (Workshop 3)
+airflow/dags/  Airflow DAGs
 sql/           Schema definitions
 dashboard/     Plotly Dash application
 tests/         Tests and recorded fixtures
@@ -64,7 +67,7 @@ python3 ingest.py --mode incremental
 python3 ingest.py --mode status
 ```
 
-In Workshop 1, `ingest.py` is a stub: it downloads the raw responses, with retries, into `data/raw/` as `source_YYYYMMDD_HHMMSS.ext`, and `--mode status` lists the saved files. Parsing, validation and the database load are added in Workshops 2 and 3.
+In Workshop 1, `ingest.py` is a stub: it downloads the raw responses, with retries, into the Bronze layer `datalake_bronze/` (or the folder in `RAW_DIR`) as `source_YYYYMMDD_HHMMSS.ext`, and `--mode status` lists the saved files. Parsing, validation and the database load are added in Workshops 2 and 3.
 
 ## Reproduce Workshop 1 profiling
 

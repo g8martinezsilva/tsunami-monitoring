@@ -14,3 +14,17 @@ config/geographic_reference/pacific_maritime_regions.geojson
 
 # Generated profiling reports
 notebooks/report_html/
+# Airflow runtime files
+airflow/logs/
+airflow/airflow.cfg
+
+# Datalake layers: generated files stay local; only .gitkeep and chosen samples/ are committed
+datalake_bronze/*
+!datalake_bronze/.gitkeep
+!datalake_bronze/samples/
+datalake_silver/*
+!datalake_silver/.gitkeep
+!datalake_silver/samples/
+datalake_gold/*
+!datalake_gold/.gitkeep
+!datalake_gold/samples/

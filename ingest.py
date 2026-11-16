@@ -5,12 +5,14 @@
     python ingest.py --mode status
 
 Workshop 1 stub: every mode downloads or inspects the raw landing zone
-(data/raw/), following the ingestion contract of the Workshop 1 report.
+(the Bronze layer, datalake_bronze/ by default; set RAW_DIR to change it),
+following the ingestion contract of the Workshop 1 report.
 Parsing, validation and the database load are added in Workshops 2 and 3.
 Run it from the repository root.
 """
 
 import argparse
+import os
 import re
 import sys
 import time
@@ -20,7 +22,7 @@ from pathlib import Path
 import requests
 
 HEADERS = {"User-Agent": "UDistrital-Team8-Tsunami-Monitoring/1.0"}
-RAW = Path("data/raw")
+RAW = Path(os.environ.get("RAW_DIR", "datalake_bronze"))  # Bronze layer; one place to change the folder
 ATTEMPTS = 3  # Team policy: three attempts with increasing waits
 
 HAZEL_EVENTS = "https://www.ngdc.noaa.gov/hazel/hazard-service/api/v1/tsunamis/events"
