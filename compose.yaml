@@ -13,6 +13,8 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
     # Project database (PostGIS service "db"), used by the DAGs as the "tsunami_db" connection
     AIRFLOW_CONN_TSUNAMI_DB: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    # Filesystem connection used by the Silver FileSensor (absolute paths)
+    AIRFLOW_CONN_FS_DEFAULT: '{"conn_type": "fs", "extra": {"path": "/"}}'
     # Project code and medallion layers inside the containers
     PYTHONPATH: /opt/airflow/project
     PROJECT_DIR: /opt/airflow/project

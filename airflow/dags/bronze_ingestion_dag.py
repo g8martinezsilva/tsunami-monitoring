@@ -125,6 +125,10 @@ def bronze_ingestion():
         log.info("manifest saved: %s", path)
         if manifest["problems"]:
             raise RuntimeError(f"{len(manifest['problems'])} problem(s): {manifest['problems']}")
+        # Arrival marker watched by the Silver DAG's FileSensor; Silver removes it once processed
+        marker = bronze_dir() / "_new" / path.name
+        marker.parent.mkdir(exist_ok=True)
+        marker.write_text(str(path), encoding="utf-8")
         return str(path)
 
     noaa = extract_noaa_hazel()

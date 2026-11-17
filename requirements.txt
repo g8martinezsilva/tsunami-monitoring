@@ -4,6 +4,8 @@
 # Downloads (ingest.py and workshop_1 scripts)
 requests>=2.32
 PyYAML>=6.0  # config/sources.yaml
+pyarrow>=14  # Silver Parquet files
+psycopg2-binary>=2.9  # loading Silver into PostgreSQL
 
 # Profiling notebook (notebooks/01_source_profiling.ipynb)
 pandas>=2.2,<3.0  # fg-data-profiling does not support pandas 3 yet
