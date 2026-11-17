@@ -37,13 +37,16 @@ config/        Source configuration (sources.yaml) and geographic reference
 datalake_bronze/ Bronze layer: raw landing zone (git-ignored except samples)
 datalake_silver/ Silver layer: cleaned Parquet files
 datalake_gold/   Gold layer: aggregates (Workshop 3)
-airflow/dags/  Airflow DAGs
+airflow/        Airflow image (Dockerfile, requirements) and DAGs (airflow/dags/)
+data/raw/      Workshop 1 raw landing zone (kept; replaced by datalake_bronze/)
 sql/           Schema definitions
 dashboard/     Plotly Dash application
 tests/         Tests and recorded fixtures
 notebooks/     Source profiling and analysis
 docs/          Project documentation (diagrams, source-status log)
 workshop_1/    Workshop 1 deliverables (report, mapping, samples, download scripts)
+workshop_2/    Workshop 2 deliverables (report and plan)
+compose.yaml   Docker Compose stack (PostGIS and Airflow)
 ```
 
 ## Setup
@@ -67,7 +70,31 @@ python3 ingest.py --mode incremental
 python3 ingest.py --mode status
 ```
 
-In Workshop 1, `ingest.py` is a stub: it downloads the raw responses, with retries, into the Bronze layer `datalake_bronze/` (or the folder in `RAW_DIR`) as `source_YYYYMMDD_HHMMSS.ext`, and `--mode status` lists the saved files. Parsing, validation and the database load are added in Workshops 2 and 3.
+`ingest.py` downloads the raw responses, with retries, into the Bronze layer `datalake_bronze/` (or the folder in `RAW_DIR`) as `source_YYYYMMDD_HHMMSS.ext`, and `--mode status` lists the saved files. It uses the same `src/` code as the Bronze DAG; cleaning and the database load run in the Silver DAG (next section).
+
+## Pipeline (Workshop 2): Docker, Airflow and the medallion layers
+
+The stack runs PostgreSQL/PostGIS (project database, `localhost:5433`) and Apache Airflow 2.10 (UI at http://localhost:8080) with Docker Compose. With `.env` created (see Setup):
+
+```bash
+docker compose up -d          # PostGIS, Airflow metadata DB, webserver, scheduler, triggerer
+docker compose ps             # all services running
+```
+
+Log in to Airflow with `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` from `.env`, then:
+
+1. Unpause `silver_processing`.
+2. Trigger `bronze_ingestion` (optionally with other `start` / `end` dates). It downloads the four sources into `datalake_bronze/`, validates the files and writes a run manifest.
+3. Within 10 minutes `silver_processing` detects the new Bronze run with its FileSensor, writes `topic_YYYYMMDD_HHMMSS.parquet` files to `datalake_silver/` and loads them into PostGIS.
+
+The database schema (`sql/`) is created automatically the first time the database volume starts. Check the load with:
+
+```bash
+docker exec tsunami-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select * from ingestion_run"'
+docker compose down           # stop; data stay in the Docker volumes and the datalake folders
+```
+
+Generated datalake files are git-ignored; selected samples are kept in each layer's `samples/` folder.
 
 ## Reproduce Workshop 1 profiling
 
@@ -78,7 +105,7 @@ python3 workshop_1/download_historical_samples.py
 python3 workshop_1/download_incremental_samples.py
 ```
 
-New snapshots can change which files the notebook discovers; `--force` can overwrite saved historical samples. The notebook is [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb). Before running it, download the three selected Marine Regions boundaries from the official VLIZ web feature service (the resulting GeoJSON is about 145 MB; it takes a few minutes):
+New snapshots can change which files the notebook discovers; `--force` can overwrite saved historical samples. The notebook is [notebooks/01_source_profiling.ipynb](notebooks/01_source_profiling.ipynb). Before running it, download the three selected Marine Regions boundaries from the official VLIZ web feature service (the resulting GeoJSON is about 85 MB; it takes a few minutes):
 
 ```bash
 python3 workshop_1/download_marine_regions.py
@@ -96,3 +123,14 @@ The script creates `config/geographic_reference/pacific_maritime_regions.geojson
 - Architecture diagram: [docs/architecture.md](docs/architecture.md)
 - Source-status log: [docs/source_status_log.md](docs/source_status_log.md)
 - Recorded test fixtures: [tests/fixtures/](tests/fixtures/)
+
+## Workshop 2 deliverables
+
+- Report: [workshop_2/report/Team8_Workshop2_Tsunami.pdf](workshop_2/report/Team8_Workshop2_Tsunami.pdf) (LaTeX source `Team8_Workshop2_Tsunami.tex`)
+- Docker stack: [compose.yaml](compose.yaml), [airflow/Dockerfile](airflow/Dockerfile), [airflow/requirements.txt](airflow/requirements.txt)
+- DAGs: [airflow/dags/bronze_ingestion_dag.py](airflow/dags/bronze_ingestion_dag.py), [airflow/dags/silver_processing_dag.py](airflow/dags/silver_processing_dag.py)
+- Shared code: [src/](src/) (sources, downloads, Silver preprocessing, database load)
+- Database schema: [sql/](sql/)
+- Pipeline samples: [datalake_bronze/samples/](datalake_bronze/samples/), [datalake_silver/samples/](datalake_silver/samples/)
+- Silver exploration notebook: [notebooks/02_silver_exploration.ipynb](notebooks/02_silver_exploration.ipynb)
+- Medallion architecture diagram: [docs/architecture_medallion.md](docs/architecture_medallion.md)

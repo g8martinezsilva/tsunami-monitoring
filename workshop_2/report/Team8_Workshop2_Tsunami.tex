@@ -132,7 +132,8 @@
             \large A report submitted for Workshop No.\ 2 of the course\\
             \textit{Data Analysis Programming}, Semester 2026-II\\[0.3cm]
             \small
-            Repository: \url{https://github.com/g8martinezsilva/tsunami-monitoring}
+            Repository: \url{https://github.com/g8martinezsilva/tsunami-monitoring}\\[0.2cm]
+            Branch: \texttt{feat/workshop2-historical-ingestion}
             \vfill
 
             \today
@@ -160,7 +161,11 @@
     % -------------------------------------------------------------------
     \chapter*{Abstract}
     \addcontentsline{toc}{chapter}{Abstract}
-    \todo{Executive summary: technical approach, stack decisions, pipeline design and main results.}
+    This report presents the first working version of the medallion architecture of the Team~8 tsunami monitoring system.
+The stack runs locally with Docker Compose: Apache Airflow 2.10 with its own metadata database, and a PostgreSQL/PostGIS database that holds the canonical model designed in Workshop~1.
+A Bronze DAG, written with the TaskFlow API, performs the historical load of the four sources (NOAA HazEL, USGS FDSN one year per task, and a snapshot of the USGS real-time and NTWC/PTWC feeds), validates every saved file and writes a run manifest.
+A Silver DAG, started by a FileSensor when a new Bronze run arrives, cleans the raw files into four Parquet topics (earthquakes, tsunami events, bulletins and rejected records) and loads them idempotently into the database.
+The full 2010--2025 load produces 2,612 earthquakes, 221 tsunami events and the current bulletins; one catalog record, a 2017 nuclear explosion, is quarantined, and repeated runs add no duplicate rows.
 
     % -------------------------------------------------------------------
     % Contents, list of figures, list of tables, abbreviations
@@ -193,79 +198,272 @@
 \label{ch:introduction}
 
 \section{Workshop Scope}
-\todo{Goal of Workshop 2: architecture, Docker stack, database schema and historical ingestion with validation and quarantine, organized as the Bronze and Silver layers of a medallion architecture. Incremental ingestion and scheduling remain for Workshop 3.}
+Workshop~2 turns the Workshop~1 data contract~\cite{workshop1} into running code.
+The course project assigns it the architecture, the Docker stack, the database schema and the historical ingestion with validation and quarantine; the Workshop~2 guide organizes this work as the Bronze and Silver layers of a medallion architecture orchestrated by Airflow.
+Incremental ingestion with watermarks and scheduling belongs to Workshop~3, so the Bronze DAG is triggered manually.
+
+\textbf{Deliverables.} The implementation is in the project repository (branch \path{feat/workshop2-historical-ingestion}): \path{compose.yaml} and \path{airflow/} (Docker stack), \path{airflow/dags/bronze_ingestion_dag.py} and \path{airflow/dags/silver_processing_dag.py}, the shared code in \path{src/}, the schema in \path{sql/}, Bronze and Silver samples in \path{datalake_bronze/samples/} and \path{datalake_silver/samples/}, and the notebook \path{notebooks/02_silver_exploration.ipynb}; the main \path{README.md} explains how to run the pipeline.
 
 \section{Changes Since Workshop 1}
-\todo{Decisions carried over from the Workshop 1 data contract and what changed (for example, the Bronze folder and the Marine Regions download).}
+\begin{itemize}[nosep]
+  \item \textbf{Kept from Workshop~1:} the five sources and their parameters, now read from \path{config/sources.yaml}; the canonical model and ER diagram, now created as SQL; the cleaning rules of the canonical mapping; and the three-retry download policy.
+  \item \textbf{Raw landing zone:} the Workshop~1 folder \path{data/raw/} is replaced by the Bronze layer \path{datalake_bronze/}. The folder is set in one place (\texttt{RAW\_DIR}).
+  \item \textbf{Shared code:} the download logic of \texttt{ingest.py} moved to the \path{src/} package, so the command-line tool and the DAGs use the same functions.
+  \item \textbf{Units:} HazEL depth (km) and maximum water height (m) are stored with the units documented in Workshop~1.
+\end{itemize}
 
 \chapter{Technical Architecture}
 \label{ch:architecture}
 
 \section{Architecture Diagram}
-\todo{Full diagram with sources, Airflow scheduler, Bronze, Silver, Gold (planned), database and dashboard (planned), with layer boundaries labeled.}
+Figure~\ref{fig:architecture} shows the components, the data flow and the layer boundaries; it is exported from the Mermaid source in \path{docs/architecture_medallion.md}.
+
+\begin{sidewaysfigure}
+\centering
+\IfFileExists{figures/architecture_medallion.png}{\includegraphics[width=\textheight,height=0.9\textwidth,keepaspectratio]{figures/architecture_medallion.png}}{\fbox{\parbox{0.8\textwidth}{\centering\vspace{2cm}\todo{export docs/architecture\_medallion.md to figures/architecture\_medallion.png}\vspace{2cm}}}}
+\caption{Medallion architecture of Workshop~2 (Gold layer and dashboard planned).}
+\label{fig:architecture}
+\end{sidewaysfigure}
 
 \section{Components}
-\todo{For each component: purpose, technology, inputs, outputs and interactions with the adjacent components.}
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.7cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Component & Purpose and technology & Inputs $\rightarrow$ outputs \\
+\midrule
+Sources & NOAA HazEL (JSON), USGS FDSN (CSV), USGS real-time feed (GeoJSON), NTWC/PTWC (Atom + CAP XML) & HTTP requests $\rightarrow$ raw responses \\
+\texttt{src/} package & Shared Python code: configuration, downloads with retries, Silver cleaning, database load & Used by \texttt{ingest.py} and both DAGs \\
+Bronze DAG & Airflow TaskFlow DAG \texttt{bronze\_ingestion}: extract, validate, write manifest & Sources $\rightarrow$ \path{datalake_bronze/} files, manifest and arrival marker \\
+Bronze layer & Host folder mounted in the containers; files kept unchanged & Read by the Silver DAG \\
+Silver DAG & Airflow DAG \texttt{silver\_processing}: FileSensor, cleaning with pandas, Parquet writer, database load & Bronze run $\rightarrow$ Silver Parquet and database rows \\
+Silver layer & Parquet files with explicit types and lineage columns & Input of the Gold layer (Workshop~3) \\
+PostGIS database & Canonical model (\path{sql/01_schema.sql}) with constraints and a spatial index & Silver rows $\rightarrow$ queries for analytics and the dashboard \\
+Airflow services & Webserver (UI on port 8080), scheduler, triggerer and their own PostgreSQL metadata database & Run, retry and log the DAGs \\
+Gold and dashboard & Aggregates and the Plotly Dash application (Workshops~3--4) & Planned \\
+\bottomrule
+\end{tabularx}
+\caption{Components of the pipeline.}
+\label{tab:components}
+\end{table}
 
 \section{Technology Choices}
-\todo{Rationale for Airflow, Docker Compose, PostgreSQL/PostGIS, Pandas or Polars, and Parquet.}
+\begin{itemize}[nosep]
+  \item \textbf{Apache Airflow}~\cite{airflow}: the orchestrator used in the course; it provides retries, logs, a web UI as evidence of each run, dynamic task mapping (one task per USGS year) and the FileSensor that links the two layers.
+  \item \textbf{Docker Compose}~\cite{compose}: the whole stack starts with one command on any team laptop, and the data folders are mounted from the host so that outputs survive container restarts.
+  \item \textbf{PostgreSQL with PostGIS}~\cite{postgis}: a relational model with constraints that enforce the Workshop~1 rules (uniqueness per source, one detail row per event type, coordinate ranges) and spatial types for the later geographic analysis.
+  \item \textbf{pandas}~\cite{pandas}: the samples are small (about 3,000 records per full load), pandas is already in the Airflow image and was used for profiling in Workshop~1, and its nullable types (\texttt{Int64}, \texttt{boolean}) keep missing values missing.
+  \item \textbf{Apache Parquet}~\cite{parquet}: a columnar format that stores the data types and time zones, compresses well (a full Silver run takes 0.4~MB against 1~MB of raw Bronze files) and can be read directly by pandas and PySpark in Workshop~3.
+\end{itemize}
 
 \section{File Nomenclature}
-\todo{Bronze \texttt{source\_YYYYMMDD\_HHMMSS.ext} and Silver \texttt{topic\_YYYYMMDD\_HHMMSS.parquet}, and how each Silver file is traced to its Bronze files.}
+\begin{itemize}[nosep]
+  \item \textbf{Bronze:} \texttt{source[\_part]\_YYYYMMDD\_HHMMSS.ext}, for example \path{usgs_fdsn_2011_20261117_001544.csv} or \path{noaa_hazel_page2_20261117_001544.json}; the timestamp is the logical date of the Bronze run, and the extension keeps the source format. Each run also writes \path{bronze_manifest_YYYYMMDD_HHMMSS.json} with its files and record counts.
+  \item \textbf{Silver:} \texttt{topic\_YYYYMMDD\_HHMMSS.parquet} with the topics \texttt{earthquakes}, \texttt{tsunami\_events}, \texttt{tsunami\_bulletins} and \texttt{rejected\_records}; the timestamp is the logical date of the Silver run. Each run writes \path{silver_manifest_YYYYMMDD_HHMMSS.json}.
+  \item \textbf{Traceability:} every Silver row stores its Bronze file, its record locator (row, item or feature) and the Bronze manifest, and each Silver manifest names the Bronze manifest it came from.
+\end{itemize}
 
 \chapter{Methodology}
 \label{ch:methodology}
 
 \section{Preprocessing Pipeline (Bronze to Silver)}
 \subsection{Missing Values}
-\todo{Strategy per field (drop, keep NULL, flag), based on the Workshop 1 profiling.}
+Missing values are kept as missing (\texttt{NULL}) and are never imputed: the gaps found in Workshop~1 are real absences in the sources, not errors, so imputing a mean would invent information.
+\begin{itemize}[nosep]
+  \item \textbf{HazEL:} time of day missing in 23 events (date only) and seconds in 32: kept with a \texttt{time\_precision} flag; coordinates missing in 9 events: kept, without a map point; \texttt{warningStatusId} missing in 76.5\%; \texttt{eqMagnitude} and \texttt{eqDepth} missing in 15.8\% (non-seismic tsunamis); \texttt{maxWaterHeight} missing in 5.4\%.
+  \item \textbf{USGS:} \texttt{tsunami\_bulletin\_flag} exists only in the real-time feed (null for the 1,929 catalog rows); empty uncertainty columns such as \texttt{magError} are not carried into Silver.
+  \item \textbf{Dropped records:} only records that cannot be identified or placed in time (no identifier, no origin time, no magnitude) are removed, and they go to quarantine instead of being deleted silently.
+\end{itemize}
 \subsection{Data Types and Units}
-\todo{Target types for timestamps, coordinates, magnitudes, depths and categorical codes; UTC and unit rules.}
+Times are converted to UTC \texttt{datetime} values: ISO~8601 strings (FDSN), epoch milliseconds (real-time feed), ISO~8601 with offset (CAP) and the six HazEL date columns.
+Coordinates are WGS84 decimal degrees with longitudes normalized to $-180$ to $180$.
+Magnitudes and depths are floats; the magnitude type is a separate string.
+NOAA codes (cause, validity, region, warning status) and hour and minute are nullable integers, and flags are nullable booleans.
+Depth is in km (USGS and HazEL), maximum water height in m, and CAP depth text is converted to km only when the unit ``kilometers'' is explicit.
 \subsection{Validation and Quarantine}
-\todo{Validation rules (coordinate ranges, timestamps, required fields, CAP \texttt{expires} $\geq$ \texttt{sent}) and how rejected records are stored.}
+Records are rejected when the identifier, the origin time or date, or the magnitude (earthquakes) is missing, when a coordinate is out of range, or when a USGS catalog record is not an earthquake.
+Rejected records are written to the \texttt{rejected\_records} Parquet topic and to the \texttt{rejected\_record} table with the source, identifier, reason and Bronze locator, and never stop the batch.
+Inconsistencies inside a valid record are flagged and preserved, not corrected: for example \texttt{expires\_before\_sent} marks the NTWC message whose \texttt{expires} is 11~hours before \texttt{sent} (problem~8 of Workshop~1).
 \subsection{Outliers}
-\todo{IQR or Z-score checks on numeric fields, and which extreme values are real (for example, the 481~m Tracy Arm run-up).}
+Numeric fields are checked with the interquartile-range rule: a value outside $[Q_1 - 1.5\,\mathrm{IQR},\ Q_3 + 1.5\,\mathrm{IQR}]$ is flagged in a boolean column, and no value is removed.
+The rule was chosen over the Z-score because the distributions are strongly skewed, so the mean and standard deviation are dominated by the extremes.
+In a full run, 385 of 2,612 earthquake depths are flagged ($Q_1 = 10$~km, $Q_3 = 61$~km): they are real intermediate and deep earthquakes of the Pacific subduction zones.
+Thirty-three tsunami water heights are flagged ($Q_1 = 0.08$~m, $Q_3 = 0.70$~m), including the 39.3~m of Tohoku 2011 and the 481~m run-up of Tracy Arm 2025, both documented real events.
+The flags are therefore kept as information for the analysis rather than as errors.
 \subsection{Deduplication}
-\todo{Duplicate keys within a source and across ingestion batches.}
+Within a Silver run, duplicates are removed by (\texttt{source}, \texttt{external\_id}), keeping the most recent \texttt{updated} value for earthquakes, and by CAP \texttt{identifier} for bulletins.
+Across runs, the database key \texttt{UNIQUE(source, external\_id)} makes every load an upsert, and a SHA-256 content hash of the normalized fields means that a record is rewritten only when its content changes.
+The same earthquake reported by the FDSN catalog and by the real-time feed stays as two observations; linking them is the cross-source matching of Workshop~3.
 \subsection{Silver Schema}
-\todo{Field names, types and required fields of each Silver Parquet file.}
+Table~\ref{tab:silver} summarizes the four Silver topics; all of them also carry the lineage columns \texttt{bronze\_file}, \texttt{locator}, \texttt{bronze\_manifest} and \texttt{silver\_processed\_at}.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{2.9cm}@{}}
+\toprule
+Topic & Main fields (type) & Required \\
+\midrule
+\texttt{earthquakes} & \texttt{source}, \texttt{external\_id} (string); \texttt{event\_time}, \texttt{source\_updated\_at} (UTC datetime); \texttt{latitude}, \texttt{longitude}, \texttt{depth\_km}, \texttt{magnitude} (float); \texttt{magnitude\_type}, \texttt{place}, \texttt{status}, \texttt{net} (string); \texttt{tsunami\_bulletin\_flag} (boolean); \texttt{depth\_km\_iqr\_outlier} (boolean); \texttt{content\_hash} & \texttt{source}, \texttt{external\_id}, \texttt{event\_time}, \texttt{magnitude} \\
+\texttt{tsunami\_events} & \texttt{event\_time} (UTC, null if incomplete), \texttt{event\_date}, \texttt{known\_hour}, \texttt{known\_minute} (Int64), \texttt{time\_precision}; coordinates; NOAA codes (Int64); \texttt{reported\_eq\_magnitude}, \texttt{reported\_eq\_depth} (km), \texttt{max\_water\_height} (m); \texttt{num\_runups} (Int64); \texttt{country}, \texttt{location\_name}; outlier flag; \texttt{content\_hash} & \texttt{source}, \texttt{external\_id}, \texttt{event\_date} \\
+\texttt{tsunami\_bulletins} & \texttt{center}, \texttt{cap\_identifier}, Atom entry; \texttt{sent\_at}, \texttt{expires\_at}, \texttt{reported\_origin\_at} (UTC); CAP \texttt{event}, \texttt{severity}, \texttt{urgency}, \texttt{certainty}; preliminary magnitude and type; depth text and km; coordinates; \texttt{expires\_before\_sent} (boolean) & \texttt{cap\_identifier} \\
+\texttt{rejected\_records} & \texttt{source}, \texttt{external\_id}, \texttt{reason}, \texttt{bronze\_file}, \texttt{locator} & \texttt{source}, \texttt{reason} \\
+\bottomrule
+\end{tabularx}
+\caption{Silver Parquet schema.}
+\label{tab:silver}
+\end{table}
 
 \section{Database Schema}
-\todo{Tables created from the canonical model and the ER diagram of Workshop 1.}
+\path{sql/01_schema.sql} creates the Workshop~1 model: \texttt{source}, \texttt{ingestion\_run}, \texttt{ingestion\_state}, \texttt{rejected\_record}, \texttt{event}, \texttt{event\_group}, \texttt{event\_relation}, the domain tables \texttt{earthquake}, \texttt{tsunami\_event} and \texttt{tsunami\_bulletin}, and the four NOAA code catalogs.
+The constraints encode the mapping rules: \texttt{UNIQUE(source, external\_id)}; a composite foreign key that only lets an event have the detail row of its own type; checks on coordinate ranges, event types, severity scales, relation types and review statuses; and a PostGIS point column computed from latitude and longitude, with a spatial index.
+\path{sql/02_reference_data.sql} inserts the five sources and the NOAA code catalogs (12 causes, 6 validity codes, 23 regions and 6 warning statuses), generated from the configuration and the saved descriptor files.
+Both scripts are safe to run again and are executed automatically when the database volume is created.
 
 \section{Docker Stack}
-\todo{Services (Airflow webserver, scheduler, triggerer, metadata database, PostGIS), volumes, networking and setup instructions.}
+\path{compose.yaml} defines six services on one Docker network:
+\begin{itemize}[nosep]
+  \item \texttt{db}: PostGIS 16-3.7 with the project database, published only on \texttt{127.0.0.1:5433}; \path{sql/} is mounted as its initialization folder.
+  \item \texttt{airflow-db}: PostgreSQL~16 for the Airflow metadata, separate from the project data.
+  \item \texttt{airflow-init}: one-off job that migrates the metadata database and creates the admin user.
+  \item \texttt{airflow-webserver} (UI on \texttt{127.0.0.1:8080}), \texttt{airflow-scheduler} and \texttt{airflow-triggerer}, with the LocalExecutor.
+\end{itemize}
+The Airflow image is built from \texttt{apache/airflow:2.10.4} with \path{airflow/requirements.txt}.
+The DAG, log and plugin folders, the three \path{datalake_*} folders, \path{src/}, \path{config/} and \texttt{ingest.py} are mounted from the host, so DAG changes are reloaded live and outputs persist.
+Credentials and settings come from \path{.env} (template \path{.env.example}); the project database is exposed to the DAGs as the Airflow connection \texttt{tsunami\_db}.
+The stack is started with \texttt{docker compose up -d} (Appendix~\ref{app:reproduce}).
 
 \section{Airflow DAGs}
 \subsection{Bronze Ingestion DAG}
-\todo{Tasks, schedule, error handling, logging and outputs of \texttt{bronze\_ingestion\_dag.py}.}
+\texttt{bronze\_ingestion} has the parameters \texttt{start} and \texttt{end} (default 2010-01-01 to 2025-12-31) and these tasks:
+\begin{itemize}[nosep]
+  \item \texttt{extract\_noaa\_hazel}: downloads every HazEL page and checks that the count equals \texttt{totalItems}.
+  \item \texttt{plan\_years} and \texttt{extract\_usgs\_fdsn}: one mapped task per year (16 for the full period), each checked against the USGS \texttt{count} method, so a failed year is retried alone.
+  \item \texttt{extract\_feed}: one mapped task each for the USGS real-time feed, NTWC and PTWC, including the CAP messages.
+  \item \texttt{validate}: runs even if an extraction failed and checks every saved file (HazEL JSON structure, GeoJSON features, required CSV columns, well-formed XML).
+  \item \texttt{persist\_manifest}: writes the JSON manifest; if there was any problem the run is marked as failed, otherwise it writes the arrival marker for the Silver DAG.
+\end{itemize}
+Downloads use three attempts with waits of 2 and 4~s, each task has two Airflow retries, and all messages go through the logging module into the Airflow task logs.
+The schedule is manual (\texttt{schedule=None}); a full run takes about 10~seconds and saves 24 files (about 1~MB).
 \subsection{Silver Processing DAG}
-\todo{FileSensor configuration (\texttt{poke\_interval}, \texttt{timeout}), tasks and outputs of \texttt{silver\_processing\_dag.py}.}
+\texttt{silver\_processing} runs every 10~minutes with these tasks:
+\begin{itemize}[nosep]
+  \item \texttt{wait\_for\_bronze}: a FileSensor on \path{datalake_bronze/_new/bronze_manifest_*.json} with \texttt{poke\_interval} = 60~s, \texttt{timeout} = 9~minutes (shorter than the schedule, so runs do not overlap), \texttt{mode="reschedule"} (the worker slot is freed between checks) and \texttt{soft\_fail=True} (a period without new Bronze data ends as skipped, not failed).
+  \item \texttt{find\_new\_bronze\_runs}: lists the pending markers.
+  \item \texttt{bronze\_to\_silver}: applies the preprocessing of Section~\ref{ch:methodology} and writes the four Parquet topics and the Silver manifest.
+  \item \texttt{load\_to\_database}: loads them into PostGIS, with one transaction per source.
+  \item \texttt{clear\_markers}: removes the markers only after a successful load.
+\end{itemize}
+The marker is a small file written by the Bronze DAG after a validated run; the Bronze files themselves are never modified.
 \subsection{Idempotency}
-\todo{Why running a DAG twice for the same period produces no duplicates.}
+Bronze file names use the run's logical date, so re-running the same Bronze run overwrites its own files instead of creating new ones.
+A Bronze run is processed by Silver only while its marker exists, and the marker is removed only after the database load succeeds, so a failure leaves it pending for the next Silver run.
+The database load is an upsert on \texttt{(source, external\_id)} that rewrites a row only when its content hash changes, and a rejected record is quarantined only once per Bronze file.
+As a result, loading the same historical data three times produced the same database content (Section~\ref{ch:results}).
 
 \chapter{Results}
 \label{ch:results}
 
 \section{Historical Load}
-\todo{Records read, accepted, rejected and stored per source.}
+Table~\ref{tab:load} shows the three Silver runs that processed the full 2010--2025 Bronze runs of 17 November 2026.
+The first load inserted every record; the second and third read the same data and inserted nothing, because the content hashes were unchanged.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Source & Read & Inserted (1st run) & Inserted (2nd, 3rd run) & Rejected \\
+\midrule
+NOAA HazEL & 221 & 221 & 0 & 0 \\
+USGS FDSN & 1,930 & 1,929 & 0 & 1 \\
+USGS real-time & 683 & 683 & 0 & 0 \\
+NTWC & 1 & 1 & 0 & 0 \\
+PTWC & 1 & 1 & 0 & 0 \\
+\bottomrule
+\end{tabular}
+\caption{Database load per source (\texttt{ingestion\_run}).}
+\label{tab:load}
+\end{table}
+
+The database holds 2,612 earthquakes, 221 tsunami events and 2 bulletins; 2,826 events have a PostGIS point (the 9 HazEL events without coordinates have none), and the database takes 19~MB.
+The rejected record is USGS \texttt{us2000aert}, catalogued with the event type ``nuclear explosion'' (the September 2017 test in North Korea): a valid catalog entry that is not an earthquake, so it is quarantined instead of being loaded as one.
+The NTWC bulletin \texttt{PAAQ-1-togrrv} is loaded with \texttt{expires\_before\_sent = true}.
 
 \section{Pipeline Evidence}
-\todo{Screenshots of successful Airflow runs, sample Bronze files and sample Silver Parquet content.}
+Figures~\ref{fig:bronze-runs} and~\ref{fig:silver-runs} show the successful Airflow runs of both DAGs.
+Three Bronze samples (one NOAA page per run, with the run manifests) are kept in \path{datalake_bronze/samples/}, and three Silver samples (the \texttt{tsunami\_events} file of each run, with the Silver manifests) in \path{datalake_silver/samples/}; Appendix~\ref{app:samples} shows excerpts.
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/airflow_bronze_grid.png}
+\caption{Successful runs of the \texttt{bronze\_ingestion} DAG.}
+\label{fig:bronze-runs}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/airflow_silver_grid.png}
+\caption{Successful runs of the \texttt{silver\_processing} DAG with its FileSensor.}
+\label{fig:silver-runs}
+\end{figure}
+
+\section{Silver Data Exploration}
+The notebook \path{notebooks/02_silver_exploration.ipynb} reads the three \texttt{tsunami\_events} Silver samples with pandas and checks them without modifying them:
+\begin{itemize}[nosep]
+  \item \textbf{Schema:} each file has 221 rows and 28 columns with the types of Table~\ref{tab:silver}; the dates cover 2010-01-02 to 2025-12-12.
+  \item \textbf{Missing values:} kept as missing, as designed: \texttt{warning\_status\_id} 76.5\%, \texttt{reported\_eq\_magnitude} and \texttt{reported\_eq\_depth} 15.8\% (all 35 belong to tsunamis without an earthquake cause), incomplete timestamps 14.5\% and coordinates 4.1\%.
+  \item \textbf{Validation:} no duplicated (\texttt{source}, \texttt{external\_id}) keys, no out-of-range coordinates, no negative measurements, no inconsistency between \texttt{event\_time}, \texttt{event\_date} and \texttt{time\_precision}, and complete lineage fields with valid SHA-256 hashes.
+  \item \textbf{Outliers:} recomputing the IQR rule gives the same 33 flagged water heights as the pipeline (bounds $-0.85$ to $1.63$~m), with 0 disagreements.
+  \item \textbf{Consistency across runs:} the three Silver runs have the same schema, the same 221 keys and 0 different content hashes, which confirms that repeated processing of the same historical data is stable.
+\end{itemize}
+Figure~\ref{fig:silver-plots} shows two of its plots.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{figures/silver_tsunamis_per_year.png}\hfill
+\includegraphics[width=0.49\textwidth]{figures/silver_water_height.png}
+\caption{Silver tsunami events per year (left) and maximum water height up to 2~m (right), from \texttt{02\_silver\_exploration.ipynb}.}
+\label{fig:silver-plots}
+\end{figure}
+
 
 \chapter{Discussion}
 \label{ch:discussion}
 
 \section{Challenges and Decisions}
-\todo{Implementation problems found and how they were solved.}
+\begin{itemize}[nosep]
+  \item \textbf{Memory:} a 7~GB laptop runs Airflow and two PostgreSQL servers with about 2~GB free; the heavy geographic step of Workshop~1 was therefore kept out of the DAGs for now.
+  \item \textbf{FileSensor semantics:} a sensor on the Bronze files themselves would fire on every run, because old files remain. Arrival markers that Silver removes after loading make each Bronze run trigger exactly one Silver processing.
+  \item \textbf{Airflow file ownership:} files written in the containers belonged to another user until \texttt{AIRFLOW\_UID} was set to the host user.
+  \item \textbf{Missing connection:} the FileSensor needs a filesystem connection that Airflow does not create by default; it is now defined in \path{compose.yaml}.
+  \item \textbf{Non-earthquake catalog events:} the USGS catalog contains a nuclear explosion within the scope; the type check sends it to quarantine.
+\end{itemize}
 
 \chapter{Conclusions and Open Questions}
 \label{ch:conclusions}
-\todo{Main results of Workshop 2 and what remains for Workshop 3.}
+\section{Results}
+The medallion pipeline works end to end: the Docker stack starts with one command, the Bronze DAG loads the full 2010--2025 history of the four sources with validation and a manifest, and the Silver DAG turns each new Bronze run into typed Parquet files and an idempotent database load with quarantine.
+The Workshop~1 cleaning rules (UTC times, partial NOAA times, explicit units, flags instead of corrections) are now enforced in code and by database constraints.
+
+\section{Open Questions for Workshop 3}
+\begin{itemize}[nosep]
+  \item Schedule the incremental ingestion (USGS feed every minute at most, tsunami.gov every 5 minutes) with watermarks and the FDSN reconciliation query.
+  \item Add the Pacific scope flags (Marine Regions and 100~km margin) with a memory-efficient method.
+  \item Implement the cross-source matching and the review of \texttt{event\_relation} candidates.
+  \item Build the Gold layer from the Silver Parquet files with PySpark.
+  \item Add automated tests that use the recorded fixtures in \path{tests/fixtures/}.
+\end{itemize}
 
 \chapter{Reflection}
 \label{ch:reflection}
-\todo{Team reflection on Workshop 2.}
+\textbf{What worked.} Building on the Workshop~1 contract made the implementation direct: the sources, keys, units and cleaning rules were already decided and documented, so each DAG task maps to a written rule. Reusing one \path{src/} package for the command-line tool and the DAGs avoided two versions of the same code.
+
+\textbf{What was difficult.} Most of the effort went into the environment rather than the code: Docker and Airflow configuration, file permissions, connections and the memory limits of the laptops. Coordinating three people on one branch also required clear rules on who edits which files.
+
+\textbf{Lessons learned.} Test each piece in the real environment as early as possible, keep raw data immutable and add metadata (manifests and markers) around it instead, and prove idempotency by running the same load more than once.
 
     % -------------------------------------------------------------------
     % References
@@ -299,7 +497,11 @@ cruise ship--frequented Alaska fjord}.
 \url{https://doi.org/10.1126/science.aec3187}.
 Accessed 16 November 2026.
 \bibitem{workshop1} Team 8. \emph{Tsunami Monitoring System -- Workshop No.~1: Hazard Definition, Source Validation, and Data Contract}. Universidad Distrital Francisco Jos\'e de Caldas, 2026. \url{https://github.com/g8martinezsilva/tsunami-monitoring/tree/workshop-1}.
-% TODO: add citations for Apache Airflow, Docker Compose, PostgreSQL/PostGIS, Apache Parquet and the Python libraries used.
+\bibitem{airflow} The Apache Software Foundation. \emph{Apache Airflow 2.10 documentation}. \url{https://airflow.apache.org/docs/apache-airflow/2.10.4/}. Accessed 17 November 2026.
+\bibitem{compose} Docker Inc. \emph{Docker Compose documentation}. \url{https://docs.docker.com/compose/}. Accessed 17 November 2026.
+\bibitem{postgis} PostGIS Project Steering Committee. \emph{PostGIS documentation}. \url{https://postgis.net/documentation/}. Accessed 17 November 2026.
+\bibitem{pandas} The pandas development team. \emph{pandas documentation}. \url{https://pandas.pydata.org/docs/}. Accessed 17 November 2026.
+\bibitem{parquet} The Apache Software Foundation. \emph{Apache Parquet documentation}. \url{https://parquet.apache.org/docs/}. Accessed 17 November 2026.
 \end{thebibliography}
 
     % -------------------------------------------------------------------
@@ -308,11 +510,51 @@ Accessed 16 November 2026.
     \begin{appendices}
 \chapter{Sample Records}
 \label{app:samples}
-\todo{Short excerpts of Bronze files and Silver Parquet rows.}
+\section{Bronze manifest}
+\path{datalake_bronze/samples/bronze_manifest_20261116_235144.json} (shortened):
+\begin{lstlisting}
+{
+  "run_id": "manual__2026-11-16T23:51:44+00:00",
+  "period": {"start": "2010-01-01", "end": "2025-12-31"},
+  "sources": [
+    {"source": "noaa_hazel", "records": 221,
+     "files": [".../noaa_hazel_page1_20261116_235144.json",
+               ".../noaa_hazel_page2_20261116_235144.json"]},
+    {"source": "usgs_fdsn", "records": 157,
+     "files": [".../usgs_fdsn_2010_20261116_235144.csv"]},
+    ...
+  ],
+  "problems": []
+}
+\end{lstlisting}
+
+\section{Silver rows}
+Row of the 2011 Tohoku tsunami in \path{datalake_silver/samples/tsunami_events_20261117_001000.parquet}:
+\begin{lstlisting}
+source=noaa_hazel  external_id=5413  event_time=2011-03-11 05:46:24.1+00:00
+time_precision=subsecond  latitude=38.297  longitude=142.373
+cause_code=1  event_validity=4  region_code=85
+reported_eq_magnitude=9.1  reported_eq_depth=29.0  max_water_height=39.26
+num_runups=6429  max_water_height_iqr_outlier=True
+bronze_file=noaa_hazel_page1_20261117_001544.json  locator=items[...]
+\end{lstlisting}
 
 \chapter{Reproducing the Workshop 2 Results}
 \label{app:reproduce}
-\todo{Commands to start the Docker stack, trigger the DAGs and inspect the outputs.}
+From the repository root, on a machine with Docker:
+\begin{lstlisting}
+cp .env.example .env          # then change the passwords
+docker compose up -d          # PostGIS, Airflow metadata DB and Airflow services
+docker compose ps             # all services running; UI at http://localhost:8080
+\end{lstlisting}
+In the Airflow UI, unpause \texttt{silver\_processing} and trigger \texttt{bronze\_ingestion} (optionally with another \texttt{start} and \texttt{end}).
+Within ten minutes the Silver DAG processes the new Bronze run. The outputs can be inspected with:
+\begin{lstlisting}
+ls datalake_bronze datalake_silver
+docker exec tsunami-postgres sh -c \
+  'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select * from ingestion_run"'
+docker compose down           # stop; data stay in the Docker volumes and folders
+\end{lstlisting}
     \end{appendices}
 
 \end{document}
