@@ -1,0 +1,22 @@
+{
+  "bronze_manifest": "bronze_manifest_20261117_000917.json",
+  "stamp": "20261116_235000",
+  "outputs": {
+    "earthquakes": {
+      "file": "/opt/airflow/datalake_silver/earthquakes_20261116_235000.parquet",
+      "rows": 2612
+    },
+    "tsunami_events": {
+      "file": "/opt/airflow/datalake_silver/tsunami_events_20261116_235000.parquet",
+      "rows": 221
+    },
+    "tsunami_bulletins": {
+      "file": "/opt/airflow/datalake_silver/tsunami_bulletins_20261116_235000.parquet",
+      "rows": 2
+    },
+    "rejected_records": {
+      "file": "/opt/airflow/datalake_silver/rejected_records_20261116_235000.parquet",
+      "rows": 1
+    }
+  }
+}
