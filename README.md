@@ -36,7 +36,7 @@ ingest.py      Command-line entry point
 config/        Source configuration (sources.yaml) and geographic reference
 datalake_bronze/ Bronze layer: raw landing zone (git-ignored except samples)
 datalake_silver/ Silver layer: cleaned Parquet files
-datalake_gold/   Gold layer: aggregates (Workshop 3)
+datalake_gold/   Gold layer: governance and storytelling summaries (Workshop 3)
 airflow/        Airflow image (Dockerfile, requirements) and DAGs (airflow/dags/)
 data/raw/      Workshop 1 raw landing zone (kept; replaced by datalake_bronze/)
 sql/           Schema definitions
@@ -46,6 +46,7 @@ notebooks/     Source profiling and analysis
 docs/          Project documentation (diagrams, source-status log)
 workshop_1/    Workshop 1 deliverables (report, mapping, samples, download scripts)
 workshop_2/    Workshop 2 deliverables (report and plan)
+workshop_3/    Workshop 3 deliverables (report and plan)
 compose.yaml   Docker Compose stack (PostGIS and Airflow)
 ```
 
