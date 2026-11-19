@@ -300,7 +300,8 @@ def process_bronze_run(manifest_path, silver_dir, stamp):
         topic_dir = silver_dir / topic
         topic_dir.mkdir(exist_ok=True)
         path = topic_dir / f"{topic}_{stamp}.parquet"
-        frame.to_parquet(path, index=False)
+        # Microsecond timestamps: pandas writes nanoseconds by default, which Spark 3.5 cannot read
+        frame.to_parquet(path, index=False, coerce_timestamps="us", allow_truncated_timestamps=True)
         outputs[topic] = {"file": str(path), "rows": len(frame)}
 
     silver_manifest = {

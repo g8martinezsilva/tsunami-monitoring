@@ -21,6 +21,10 @@ x-airflow-common: &airflow-common
     RAW_DIR: /opt/airflow/datalake_bronze
     SILVER_DIR: /opt/airflow/datalake_silver
     GOLD_DIR: /opt/airflow/datalake_gold
+    # PySpark in local mode for the Gold DAG (src/spark_session.py); small on purpose (7 GB laptops)
+    SPARK_MASTER: ${SPARK_MASTER:-local[2]}
+    SPARK_DRIVER_MEMORY: ${SPARK_DRIVER_MEMORY:-1g}
+    SPARK_SHUFFLE_PARTITIONS: ${SPARK_SHUFFLE_PARTITIONS:-4}
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs

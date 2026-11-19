@@ -18,7 +18,7 @@ Course scope reminder (Team Project Assignment): Workshop 3 covers incremental i
 - [x] `airflow/dags/incremental_ingestion_dag.py`: scheduled feeds (`incremental_ingestion`, every 10 minutes) and daily USGS FDSN reconciliation (`usgs_fdsn_reconciliation`), driven by the watermarks in `ingestion_state`
 - [x] New / updated / unchanged counts per run (`src/load.py`, `sql/03_workshop3.sql`)
 - [x] Event identification across sources (`src/matching.py`, `event_relation`; thresholds in the `event_matching` block of `config/sources.yaml`)
-- [ ] PySpark in the Airflow image (`airflow/Dockerfile`, `compose.yaml`)
+- [x] PySpark in the Airflow image (`airflow/Dockerfile`, `compose.yaml`, session settings in `src/spark_session.py`)
 - [ ] `airflow/dags/gold_processing_dag.py` with its transformations in `src/gold.py`
 - [ ] `notebooks/03_data_quality.ipynb`: data quality findings (pandas)
 - [ ] `notebooks/04_gold_preview.ipynb`: reads both Gold files
