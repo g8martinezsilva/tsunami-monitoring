@@ -3,20 +3,21 @@
   "stamp": "20261116_235000",
   "outputs": {
     "earthquakes": {
-      "file": "/opt/airflow/datalake_silver/earthquakes_20261116_235000.parquet",
+      "file": "/opt/airflow/datalake_silver/earthquakes/earthquakes_20261116_235000.parquet",
       "rows": 2612
     },
     "tsunami_events": {
-      "file": "/opt/airflow/datalake_silver/tsunami_events_20261116_235000.parquet",
+      "file": "/opt/airflow/datalake_silver/tsunami_events/tsunami_events_20261116_235000.parquet",
       "rows": 221
     },
     "tsunami_bulletins": {
-      "file": "/opt/airflow/datalake_silver/tsunami_bulletins_20261116_235000.parquet",
+      "file": "/opt/airflow/datalake_silver/tsunami_bulletins/tsunami_bulletins_20261116_235000.parquet",
       "rows": 2
     },
     "rejected_records": {
-      "file": "/opt/airflow/datalake_silver/rejected_records_20261116_235000.parquet",
+      "file": "/opt/airflow/datalake_silver/rejected_records/rejected_records_20261116_235000.parquet",
       "rows": 1
     }
-  }
+  },
+  "mode": "historical"
 }

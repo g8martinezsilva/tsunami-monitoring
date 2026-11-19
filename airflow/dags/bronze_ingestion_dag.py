@@ -4,30 +4,25 @@ Extract (NOAA HazEL, USGS FDSN one task per year, and a snapshot of the USGS rea
 NTWC and PTWC feeds) -> validate the saved files -> persist a JSON manifest of the run.
 Every response is saved unchanged as source_YYYYMMDD_HHMMSS.ext, where the timestamp is the
 run's logical date, so re-running the same DAG run overwrites the same files (idempotent).
-Triggered manually; incremental scheduling belongs to Workshop 3.
+Triggered manually for the historical load; scheduled incremental polling is in
+incremental_ingestion_dag.py (Workshop 3).
 """
 
-import csv
-import io
 import json
 import logging
-import xml.etree.ElementTree as ET
 from datetime import date, datetime
-from pathlib import Path
 
 from airflow.decorators import dag, task
 from airflow.models.param import Param
 from airflow.utils.trigger_rule import TriggerRule
 
 from src.downloads import bronze_dir
-from src.sources import FEED_EXTENSIONS, fetch_feed, fetch_noaa_hazel, fetch_usgs_fdsn_year
-
 from src.bronze_checks import check_file as _check_file
+from src.sources import FEED_EXTENSIONS, fetch_feed, fetch_noaa_hazel, fetch_usgs_fdsn_year
 
 log = logging.getLogger(__name__)
 
 STAMP_FORMAT = "%Y%m%d_%H%M%S"
-USGS_COLUMNS = {"time", "latitude", "longitude", "depth", "mag", "magType", "id", "updated"}
 
 
 def _period(params):
@@ -35,28 +30,6 @@ def _period(params):
     if start > end:
         raise ValueError(f"start {start} is after end {end}")
     return start, end
-
-
-def _check_file(path):
-    """Basic schema check of a saved Bronze file; returns a problem description or None."""
-    content = Path(path).read_bytes()
-    if not content:
-        return "empty file"
-    if path.endswith(".json"):
-        data = json.loads(content)
-        if not {"items", "totalItems"} <= data.keys():
-            return "HazEL JSON without items/totalItems"
-    elif path.endswith(".geojson"):
-        if "features" not in json.loads(content):
-            return "GeoJSON without features"
-    elif path.endswith(".csv"):
-        header = next(csv.reader(io.StringIO(content.decode("utf-8"))), [])
-        missing = USGS_COLUMNS - set(header)
-        if missing:
-            return f"CSV missing columns {sorted(missing)}"
-    elif path.endswith(".xml"):
-        ET.fromstring(content)  # raises on malformed XML
-    return None
 
 
 @dag(
