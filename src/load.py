@@ -111,7 +111,12 @@ def _event_row(record, event_type):
 
 def load_silver_run(connection, silver_manifest, mode="historical"):
     """Load the Silver files of one run; returns counts per source. One transaction per source."""
-    frames = {topic: pd.read_parquet(info["file"]) for topic, info in silver_manifest["outputs"].items()}
+    mode = silver_manifest.get("mode", mode)
+    empty = {"rejected_records": pd.DataFrame(
+        columns=["source", "external_id", "reason", "bronze_file", "locator"])}
+    frames = {topic: pd.read_parquet(info["file"]) if info["file"]
+              else empty.get(topic, pd.DataFrame(columns=["source"]))
+              for topic, info in silver_manifest["outputs"].items()}
     topics = [("earthquakes", "earthquake"), ("tsunami_events", "tsunami"), ("tsunami_bulletins", "bulletin")]
     rejected = frames["rejected_records"]
     sources = sorted(set().union(*[set(frames[t]["source"]) for t, _ in topics if not frames[t].empty],
@@ -143,6 +148,10 @@ def load_silver_run(connection, silver_manifest, mode="historical"):
                         updated = frame.loc[frame["source"] == source, "source_updated_at"]
                         if not updated.dropna().empty:
                             watermark = updated.max().isoformat()
+                    if event_type == "bulletin" and "sent_at" in frame:
+                        sent = frame.loc[frame["source"] == source, "sent_at"]
+                        if not sent.dropna().empty:
+                            watermark = sent.max().isoformat()
                 for record in rejected[rejected["source"] == source].to_dict("records"):
                     counts["read"] += 1
                     counts["rejected"] += 1

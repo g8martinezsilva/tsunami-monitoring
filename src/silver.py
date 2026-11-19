@@ -291,6 +291,9 @@ def process_bronze_run(manifest_path, silver_dir, stamp):
 
     for topic, frame in [("earthquakes", earthquakes), ("tsunami_events", tsunamis),
                          ("tsunami_bulletins", bulletins), ("rejected_records", rejected)]:
+        if frame.empty:  # no empty parquet: it would have no columns and break folder reads
+            outputs[topic] = {"file": None, "rows": 0}
+            continue
         frame = frame.copy()
         frame["bronze_manifest"] = Path(manifest_path).name
         frame["silver_processed_at"] = datetime.now(timezone.utc)
@@ -300,6 +303,11 @@ def process_bronze_run(manifest_path, silver_dir, stamp):
         frame.to_parquet(path, index=False)
         outputs[topic] = {"file": str(path), "rows": len(frame)}
 
-    silver_manifest = {"bronze_manifest": Path(manifest_path).name, "stamp": stamp, "outputs": outputs}
+    silver_manifest = {
+        "bronze_manifest": Path(manifest_path).name,
+        "stamp": stamp,
+        "mode": manifest.get("mode", "historical"),
+        "outputs": outputs,
+    }
     (manifests_dir / f"silver_manifest_{stamp}.json").write_text(json.dumps(silver_manifest, indent=2), encoding="utf-8")
     return silver_manifest

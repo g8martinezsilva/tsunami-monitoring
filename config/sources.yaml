@@ -48,6 +48,8 @@ sources:
     watermark_field: updated  # reconciliation uses updatedafter = watermark - overlap
     duplicate_key: [source, id]
     overlap_window: 1 day  # proposed
+    overlap_hours: 24  # reconciliation window = watermark - overlap
+    reconcile_starttime: "2010-01-01"  # USGS defaults to the last 30 days of origin time without it
     rate_limits: at most 20,000 events per request; one request per year, sequential, cached
     license: U.S. public domain; credit requested
     citation: "USGS Earthquake Catalog data courtesy of the U.S. Geological Survey"

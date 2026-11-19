@@ -22,6 +22,8 @@ from airflow.utils.trigger_rule import TriggerRule
 from src.downloads import bronze_dir
 from src.sources import FEED_EXTENSIONS, fetch_feed, fetch_noaa_hazel, fetch_usgs_fdsn_year
 
+from src.bronze_checks import check_file as _check_file
+
 log = logging.getLogger(__name__)
 
 STAMP_FORMAT = "%Y%m%d_%H%M%S"
