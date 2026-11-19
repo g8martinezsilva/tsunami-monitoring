@@ -63,7 +63,7 @@ sources:
     format: geojson
     authentication: none
     schedule: every 60 seconds at most (Cache-Control max-age=60)
-    watermark_field: updated  # epoch milliseconds; process an id only if new or updated is greater
+    watermark_field: updated  # maximum committed revision; compares each ID across the full feed
     duplicate_key: [source, id]
     overlap_window: whole 30-day file is read on every poll
     absence_check: FDSN lookup by event id (aging out, magnitude below 4.5, or deletion)
@@ -79,7 +79,7 @@ sources:
     format: atom+cap (xml)
     authentication: none
     schedule: every 5 minutes
-    watermark_field: cap.sent  # latest stored bulletin per center
+    watermark_field: cap.sent  # latest committed issue time; revisions are checked per CAP identifier
     duplicate_key: [source, cap.identifier]
     overlap_window: all entries present in the feed are re-checked on every poll
     rate_limits: not documented; conditional requests with If-Modified-Since (to be tested)
