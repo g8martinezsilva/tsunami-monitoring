@@ -113,3 +113,17 @@ geographic_reference:
   monitoring_margin_km: 100
   license: CC BY 4.0; do not redistribute the files
   citation: "Flanders Marine Institute (2021). Global Oceans and Seas, version 1. https://doi.org/10.14284/542"
+
+# Event identification across sources (Workshop 3, src/matching.py). A candidate pair must be
+# within the time window AND the distance; one candidate -> accepted, several -> pending review.
+event_matching:
+  rule_version: 1
+  tsunami_to_earthquake:     # caused_by: HazEL tsunami -> USGS earthquake
+    cause_codes: [1, 2, 3, 4, 5]  # NOAA causes that involve an earthquake
+    max_time_seconds: 120
+    max_distance_km: 100
+  bulletin_to_earthquake:    # reports_on: NTWC/PTWC bulletin -> USGS earthquake (CAP origin time)
+    max_time_seconds: 120
+    max_distance_km: 100
+    max_magnitude_difference: 0.5  # preliminary vs catalog magnitude (types may differ)
+  same_usgs_id: true         # identity_candidate: USGS real-time and FDSN records with the same id

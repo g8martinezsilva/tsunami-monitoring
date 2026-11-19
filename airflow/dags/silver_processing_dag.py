@@ -8,7 +8,8 @@ so each folder has a single schema: earthquakes, tsunami_events, tsunami_bulleti
 rejected_records) and the run manifests in datalake_silver/_manifests/, the load of
 src/load.py upserts them into the canonical model, and the marker is removed. Markers
 are removed only after a successful load, and the database load is an upsert, so
-processing is idempotent.
+processing is idempotent. After each load, src/matching.py links tsunamis and bulletins to
+their earthquakes in event_relation (Workshop 3).
 """
 
 import logging
@@ -22,6 +23,7 @@ from airflow.sensors.filesystem import FileSensor
 
 from src.downloads import bronze_dir
 from src.load import load_silver_run
+from src.matching import match_events
 from src.silver import process_bronze_run
 
 log = logging.getLogger(__name__)
@@ -79,6 +81,15 @@ def silver_processing():
             connection.close()
 
     @task
+    def link_events(loaded):
+        """Event identification across sources (src/matching.py), over the whole event table."""
+        connection = PostgresHook(postgres_conn_id="tsunami_db").get_conn()
+        try:
+            return match_events(connection)
+        finally:
+            connection.close()
+
+    @task
     def clear_markers(silver_runs, loaded):
         for run in silver_runs:
             (bronze_dir() / MARKERS / run["bronze_manifest"]).unlink(missing_ok=True)
@@ -89,6 +100,7 @@ def silver_processing():
     loaded = load_to_database(silver_runs)
     wait_for_bronze >> manifests
     clear_markers(silver_runs, loaded)
+    link_events(loaded)
 
 
 silver_processing()

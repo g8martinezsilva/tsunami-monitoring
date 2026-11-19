@@ -1,4 +1,4 @@
-"""Project configuration: source definitions from config/sources.yaml."""
+"""Project configuration: source definitions and event-matching rules from config/sources.yaml."""
 
 import os
 from functools import cache
@@ -11,8 +11,17 @@ PROJECT_DIR = Path(os.environ.get("PROJECT_DIR", Path(__file__).resolve().parent
 
 
 @cache
+def load_config():
+    """The whole config/sources.yaml."""
+    with open(PROJECT_DIR / "config" / "sources.yaml", encoding="utf-8") as file:
+        return yaml.safe_load(file)
+
+
 def load_sources():
     """Return the sources of config/sources.yaml indexed by their id."""
-    with open(PROJECT_DIR / "config" / "sources.yaml", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
-    return {source["id"]: source for source in config["sources"]}
+    return {source["id"]: source for source in load_config()["sources"]}
+
+
+def load_matching_rules():
+    """Thresholds of the event identification across sources (event_matching block)."""
+    return load_config()["event_matching"]
