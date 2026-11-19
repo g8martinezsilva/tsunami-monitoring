@@ -129,7 +129,7 @@ def load_silver_run(connection, silver_manifest, mode="historical"):
                     "INSERT INTO ingestion_run (source_id, mode, input_references) VALUES (%s, %s, %s) RETURNING run_id",
                     (source, mode, json.dumps([silver_manifest["bronze_manifest"]])))
                 run_id = cursor.fetchone()[0]
-                counts = {"read": 0, "accepted": 0, "updated": 0, "rejected": 0}
+                counts = {"read": 0, "accepted": 0, "updated": 0, "unchanged": 0, "rejected": 0}
                 watermark = None
                 for topic, event_type in topics:
                     frame = frames[topic]
@@ -141,6 +141,7 @@ def load_silver_run(connection, silver_manifest, mode="historical"):
                         cursor.execute(EVENT_UPSERT, event)
                         result = cursor.fetchone()
                         if result is None:  # unchanged content: nothing to rewrite
+                            counts["unchanged"] += 1
                             continue
                         counts["accepted" if result[1] else "updated"] += 1
                         cursor.execute(DOMAIN_UPSERTS[event_type], {**row, "event_id": result[0]})
@@ -165,9 +166,10 @@ def load_silver_run(connection, silver_manifest, mode="historical"):
                          source, reference, record["reason"]))
                 cursor.execute(
                     "UPDATE ingestion_run SET finished_at = %s, status = 'success', read_count = %s, "
-                    "accepted_count = %s, updated_count = %s, rejected_count = %s WHERE run_id = %s",
+                    "accepted_count = %s, updated_count = %s, unchanged_count = %s, rejected_count = %s "
+                    "WHERE run_id = %s",
                     (datetime.now(timezone.utc), counts["read"], counts["accepted"], counts["updated"],
-                     counts["rejected"], run_id))
+                     counts["unchanged"], counts["rejected"], run_id))
                 cursor.execute(
                     "INSERT INTO ingestion_state (source_id, watermark, last_successful_run_id) VALUES (%s, %s, %s) "
                     "ON CONFLICT (source_id) DO UPDATE SET last_successful_run_id = EXCLUDED.last_successful_run_id, "
