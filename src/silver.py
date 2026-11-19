@@ -259,12 +259,13 @@ def clean_bulletins(feed_paths, cap_paths):
 
 
 # ---------------------------------------------------------------------------
-# One Bronze run -> Silver Parquet files
+# One Bronze run -> Silver Parquet files (Updated for Workshop 3)
 # ---------------------------------------------------------------------------
 
 def process_bronze_run(manifest_path, silver_dir, stamp):
-    """Clean every file listed in a Bronze manifest and write topic_YYYYMMDD_HHMMSS.parquet files.
-    Each row keeps its Bronze file (lineage); the Silver manifest links back to the Bronze manifest."""
+    """Clean every file listed in a Bronze manifest and write topic subfolders
+    under datalake_silver/<topic>/<topic>_YYYYMMDD_HHMMSS.parquet.
+    Each row keeps its Bronze file (lineage); manifests are stored in datalake_silver/_manifests/."""
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     files = {summary["source"]: [Path(f).name for f in summary["files"]] for summary in manifest["sources"]}
     for summary in manifest["sources"]:
@@ -284,16 +285,21 @@ def process_bronze_run(manifest_path, silver_dir, stamp):
 
     silver_dir = Path(silver_dir)
     silver_dir.mkdir(parents=True, exist_ok=True)
+    manifests_dir = silver_dir / "_manifests"
+    manifests_dir.mkdir(exist_ok=True)
     outputs = {}
+
     for topic, frame in [("earthquakes", earthquakes), ("tsunami_events", tsunamis),
                          ("tsunami_bulletins", bulletins), ("rejected_records", rejected)]:
         frame = frame.copy()
         frame["bronze_manifest"] = Path(manifest_path).name
         frame["silver_processed_at"] = datetime.now(timezone.utc)
-        path = silver_dir / f"{topic}_{stamp}.parquet"
+        topic_dir = silver_dir / topic
+        topic_dir.mkdir(exist_ok=True)
+        path = topic_dir / f"{topic}_{stamp}.parquet"
         frame.to_parquet(path, index=False)
         outputs[topic] = {"file": str(path), "rows": len(frame)}
 
     silver_manifest = {"bronze_manifest": Path(manifest_path).name, "stamp": stamp, "outputs": outputs}
-    (silver_dir / f"silver_manifest_{stamp}.json").write_text(json.dumps(silver_manifest, indent=2), encoding="utf-8")
+    (manifests_dir / f"silver_manifest_{stamp}.json").write_text(json.dumps(silver_manifest, indent=2), encoding="utf-8")
     return silver_manifest

@@ -3,10 +3,12 @@
 A FileSensor waits for a new Bronze run, signalled by an arrival marker in
 datalake_bronze/_new/ that the Bronze DAG writes after a successful, validated run.
 For each new Bronze run, the preprocessing of src/silver.py writes
-topic_YYYYMMDD_HHMMSS.parquet files (earthquakes, tsunami_events, tsunami_bulletins,
-rejected_records) to datalake_silver/, the load of src/load.py upserts them into the
-canonical model, and the marker is removed. Markers are removed only after a successful
-load, and the database load is an upsert, so processing is idempotent.
+datalake_silver/<topic>/<topic>_YYYYMMDD_HHMMSS.parquet files (one folder per topic,
+so each folder has a single schema: earthquakes, tsunami_events, tsunami_bulletins,
+rejected_records) and the run manifests in datalake_silver/_manifests/, the load of
+src/load.py upserts them into the canonical model, and the marker is removed. Markers
+are removed only after a successful load, and the database load is an upsert, so
+processing is idempotent.
 """
 
 import logging
