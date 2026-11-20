@@ -509,6 +509,14 @@ The rank association is positive ($\rho=0.471$), with substantial variation in h
 \section{Spark Session and Docker Configuration}
 PySpark is the Python interface to Apache Spark. The project uses its DataFrame API to read several Parquet files per topic, select one version of each observation, and group the selected rows into indicators. The Airflow image includes Java~17 and PySpark~3.5.3. \path{src/spark_session.py} creates a local session with configurable defaults of two execution threads, 1~GiB of driver memory and four shuffle partitions. It uses UTC and reads compatible schemas across files. Docker Compose mounts the existing Silver and Gold directories \cite{spark353,pyspark,parquet,compose}.
 
+\section{Experimentation Notes}
+\label{sec:spark-experiments}
+Two attempts to run Spark failed before the configuration above worked. Both were found with a short test that read every Silver topic folder inside the Airflow image and counted the rows before and after keeping the latest version of each key.
+
+\paragraph{Nanosecond timestamps.} The first read stopped with \texttt{Illegal Parquet type: INT64 (TIMESTAMP(NANOS,true))}. pandas writes timestamps with nanosecond resolution by default, and Spark~3.5 cannot read that Parquet type. Silver now writes microseconds (\texttt{coerce\_timestamps="us"} in \path{src/silver.py}), and the Silver files already on disk, including the committed samples, were rewritten in that format. Gold keeps a compatibility read for older files (\cref{sec:gold-transforms}). After the change, the same test read 7,836 earthquake rows in 8~s and kept 2,612 current observations, the duplicate pattern that \path{repeated_rows} reports.
+
+\paragraph{A container user without a home directory.} The first Spark start inside the container failed while launching the Java gateway. Spark tried to create its dependency cache in \texttt{\textasciitilde/.ivy2}, but the Airflow container runs with a numeric user ID (\path{AIRFLOW_UID}) that has no home directory, so the path resolved to \texttt{?/.ivy2}. The Spark launch scripts also call \texttt{ps}, which the slim base image does not include. The Dockerfile now installs \texttt{procps}, and \path{src/spark_session.py} sets \texttt{spark.jars.ivy} and \texttt{spark.local.dir} to \path{/tmp}. These fixes do not depend on the user ID, so the image works on every team laptop.
+
 \section{Gold DAG}
 The \path{gold_processing} DAG runs daily at 06:00 UTC with catchup disabled and permits manual runs. Its \path{build_gold} task starts one Spark session, calls \path{src/gold.py}, records the input and output counts and stops the session. The completed pair is published to \path{datalake_gold/} under one UTC stamp. Each Parquet dataset is a directory with its data part and a \path{_SUCCESS} marker. The notebook opens the latest complete pair with the same stamp \cite{airflow}.
 
@@ -659,6 +667,13 @@ Orchestration & \path{silver_processing} 21 of 1,008 expected runs (2.08\%), \pa
 \label{fig:recent-map}
 \end{figure}
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/airflow_golden_grid.png}
+\caption[Gold DAG runs in Airflow]{Airflow grid of \path{gold_processing} on the second team machine: three successful \path{build_gold} runs between 21:31:36 and 21:34:49 UTC on 20 November 2026 (27--32~s each). The last run published \indicatorstamp.}
+\label{fig:airflow-gold}
+\end{figure}
+
 The validation agrees with the intent of the indicator: almost nine in ten earthquakes that produced a recorded tsunami score MODERATE or higher, while few earthquakes without one reach HIGH. Both measures depend on the accepted links, so pending links lower the first denominator. The Governance rows also expose the state of that machine honestly: stale watermarks and low run compliance are what the dashboard's data-health panel must make visible before an analyst relies on the map.
 
 \section{Automated Checks and Command-Line Validation}
@@ -666,8 +681,8 @@ The Workshop~3 suite passed 33 local tests with isolated PostgreSQL/PostGIS and 
 
 The current \path{ingest.py} reuses extraction, Silver, PostgreSQL loading and matching. The verified command-line scope is a one-day historical run with local HTTP fixtures against isolated PostGIS, repeated incremental polls, source errors, exit codes and a read-only status request to the project database. Repeating the fixture historical load preserved two observations, and replaying the same incremental response preserved the committed watermarks and observation count. A revised fixture updated the existing observation. The full historical date range was outside the validation scope.
 
-\paragraph{Pending submission evidence.}
-Attach Airflow Grid or task-log screenshots for the selected incremental, Silver and Gold executions in \cref{tab:airflow-examples}. The Gold samples \indicatorstamp{} are checked in under \path{datalake_gold/samples/}, and \path{notebooks/04_gold_preview.ipynb} shows their contents.
+\paragraph{Evidence in the repository.}
+The incremental and Silver executions in \cref{tab:airflow-examples} are documented from Airflow metadata and task logs, and the Gold DAG runs are shown in \cref{fig:airflow-gold}. The Gold samples \indicatorstamp{} are checked in under \path{datalake_gold/samples/}, and \path{notebooks/04_gold_preview.ipynb} shows their contents.
 
 \chapter{Discussion}
 The Gold pair captures what was present in the saved Silver files at its publication time. Realtime contributes observations from a rolling feed captured in snapshots, while FDSN and HazEL apply historical and geographic filters. Bulletin counts reflect the few CAP messages captured from the two feeds. Official centers can publish several messages for one episode, and a missed feed window can limit coverage.
