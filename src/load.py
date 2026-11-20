@@ -196,7 +196,7 @@ def observation_change(event_type, row, previous):
     return "unchanged"
 
 
-def _require_workshop3_schema(cursor):
+def require_workshop3_schema(cursor):
     cursor.execute("""
         SELECT EXISTS (
             SELECT 1 FROM pg_attribute
@@ -264,7 +264,7 @@ def load_silver_run(connection, silver_manifest, mode="historical"):
     for source in sources:
         with connection:  # commit on success, roll back on error
             with connection.cursor() as cursor:
-                _require_workshop3_schema(cursor)
+                require_workshop3_schema(cursor)
                 # Serialize loads of this source so version checks and writes see the same state.
                 cursor.execute("SELECT source_id FROM source WHERE source_id = %s FOR NO KEY UPDATE", (source,))
                 cursor.execute(

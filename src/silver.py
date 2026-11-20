@@ -7,7 +7,7 @@ source values flagged and preserved, and duplicates removed by source identifier
 import hashlib
 import json
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
@@ -182,12 +182,14 @@ def _time_fields(item):
     return event_date, timestamp, precision
 
 
-def clean_tsunamis(paths):
+def clean_tsunamis(paths, *, period=None):
     rows, rejected = [], []
     for path in paths:
         for position, item in enumerate(json.loads(Path(path).read_text(encoding="utf-8"))["items"]):
             locator = f"items[{position}]"
             event_date, timestamp, precision = _time_fields(item)
+            if period and event_date and not period[0] <= event_date <= period[1]:
+                continue
             lat, lon = item.get("latitude"), item.get("longitude")
             if item.get("id") is None or event_date is None:
                 _reject(rejected, "noaa_hazel", item.get("id"), "missing id or date", path, locator)
@@ -215,6 +217,8 @@ def clean_tsunamis(paths):
     if frame.empty:
         return frame, rejected
     frame = frame.drop_duplicates(["source", "external_id"], keep="last").reset_index(drop=True)
+    # Even a batch with only partial dates must keep the UTC Parquet timestamp type.
+    frame["event_time"] = pd.to_datetime(frame["event_time"], utc=True)
     for column in ["known_hour", "known_minute", "cause_code", "event_validity", "region_code",
                    "warning_status_id", "noaa_earthquake_event_id", "num_runups"]:
         frame[column] = frame[column].astype("Int64")       # nullable integers: missing stays missing
@@ -307,6 +311,8 @@ def process_bronze_run(manifest_path, silver_dir, stamp):
     under datalake_silver/<topic>/<topic>_YYYYMMDD_HHMMSS.parquet.
     Each row keeps its Bronze file (lineage); manifests are stored in datalake_silver/_manifests/."""
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    period = manifest.get("period")
+    date_range = (date.fromisoformat(period["start"]), date.fromisoformat(period["end"])) if period else None
     files = {summary["source"]: [Path(f).name for f in summary["files"]] for summary in manifest["sources"]}
     for summary in manifest["sources"]:
         if summary["source"] == "usgs_fdsn":
@@ -316,7 +322,7 @@ def process_bronze_run(manifest_path, silver_dir, stamp):
 
     earthquakes, rejected_eq = clean_earthquakes(
         [bronze / f for f in files.get("usgs_fdsn", [])], [bronze / f for f in files.get("usgs_realtime", [])])
-    tsunamis, rejected_ts = clean_tsunamis([bronze / f for f in files.get("noaa_hazel", [])])
+    tsunamis, rejected_ts = clean_tsunamis([bronze / f for f in files.get("noaa_hazel", [])], period=date_range)
     feeds = {c: bronze / f for c in ("ntwc", "ptwc") for f in files.get(c, []) if "_cap" not in f}
     caps = {c: [bronze / f for f in files.get(c, []) if "_cap" in f] for c in ("ntwc", "ptwc")}
     bulletins, rejected_bu = clean_bulletins(feeds, caps)

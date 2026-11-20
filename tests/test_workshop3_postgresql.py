@@ -18,7 +18,7 @@ DSN = os.environ.get("TSUNAMI_TEST_DSN")
 
 
 @unittest.skipUnless(DSN, "set TSUNAMI_TEST_DSN to a disposable PostgreSQL/PostGIS database")
-class PostgreSQLTests(unittest.TestCase):
+class PostgreSQLTestCase(unittest.TestCase):
     def setUp(self):
         self.connection = psycopg2.connect(DSN)
         self.addCleanup(self.connection.close)
@@ -30,8 +30,6 @@ class PostgreSQLTests(unittest.TestCase):
             cursor.execute(sql.SQL("SET search_path TO {}, public").format(self.schema))
             for filename in ("01_schema.sql", "02_reference_data.sql"):
                 cursor.execute((ROOT / "sql" / filename).read_text())
-        self.path = Path(self.enterContext(TemporaryDirectory())) / "input.parquet"
-        self.earthquake, _ = silver.clean_realtime_features([first_feature()], "original.geojson")
 
     def drop_test_schema(self):
         with self.connection, self.connection.cursor() as cursor:
@@ -51,6 +49,13 @@ class PostgreSQLTests(unittest.TestCase):
             cursor.execute(statement, params)
             if cursor.description:
                 return cursor.fetchall()
+
+
+class PostgreSQLTests(PostgreSQLTestCase):
+    def setUp(self):
+        super().setUp()
+        self.path = Path(self.enterContext(TemporaryDirectory())) / "input.parquet"
+        self.earthquake, _ = silver.clean_realtime_features([first_feature()], "original.geojson")
 
     def ingest(self, frame, topic="earthquakes"):
         frame.to_parquet(self.path, index=False)

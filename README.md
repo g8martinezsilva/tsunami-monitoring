@@ -65,13 +65,21 @@ Edit `.env` with your own values; it is git-ignored and must never be committed.
 
 ## Ingestion
 
+Start the project PostgreSQL service and export your connection settings using the variable names in `.env.example`. The CLI defaults to `localhost:5433`, database `tsunami_monitoring` and user `tsunami`. Set `POSTGRES_PASSWORD` to the database password if libpq needs it. From inside an Airflow container, set `POSTGRES_HOST=db` and `POSTGRES_PORT=5432` for the Compose database.
+
 ```bash
-python3 ingest.py --mode historical [--start 2010-01-01 --end 2025-12-31]
-python3 ingest.py --mode incremental
-python3 ingest.py --mode status
+python ingest.py --mode historical --start 2010-01-01 --end 2025-12-31
+python ingest.py --mode incremental
+python ingest.py --mode status
 ```
 
-`ingest.py` downloads the raw responses, with retries, into the Bronze layer `datalake_bronze/` (or the folder in `RAW_DIR`) as `source_YYYYMMDD_HHMMSS.ext`, and `--mode status` lists the saved files. It uses the same `src/` code as the Bronze DAG; cleaning and the database load run in the Silver DAG (next section).
+- **Historical** downloads NOAA HazEL and USGS FDSN, writes Silver Parquet, loads PostgreSQL and reconciles event links. The date bounds are inclusive UTC dates. HazEL is fetched by year and Silver applies the requested dates. PostgreSQL keeps one observation per source and external ID when a period is reloaded.
+- **Incremental** polls the USGS real-time, NTWC and PTWC feeds and reconciles FDSN from its committed revision watermark with the configured overlap. It retains original feed responses for batches that need processing and reuses the loader's checks for new, updated and unchanged observations. A poll with no changes can complete successfully.
+- **Status** queries PostgreSQL in a read-only session and lists registered sources, committed watermarks, latest runs and their counts, recorded run statuses and current observation counts.
+
+The write modes call the same Bronze, Silver, loader and matching functions as Airflow and finish after matching. CLI filenames carry a `cli` suffix and the CLI consumes its manifest directly. Airflow's Silver sensor follows arrival markers, which isolates its batches from the CLI. The loader serializes writes per source and commits the watermark with the data. You can keep Airflow active. Scheduling manual ingestion outside its polling times avoids repeated downloads.
+
+The CLI uses `RAW_DIR` and `SILVER_DIR` for its files. Exit code `0` means success, `1` means a run or connection failed, and `2` indicates invalid arguments. An incremental run can load responses from successful sources and still return `1` to report a failed source. For an existing Workshop 2 volume, check the [Workshop 3 migration instructions](workshop_3/README.md#upgrade-an-existing-workshop-2-database) before running a write mode.
 
 ## Pipeline (Workshop 2): Docker, Airflow and the medallion layers
 

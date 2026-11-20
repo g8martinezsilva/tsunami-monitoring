@@ -38,8 +38,11 @@ def fetch_usgs_fdsn_year(year, start, end, stamp):
     config = load_sources()["usgs_fdsn"]
     query = dict(config["query"],
                  starttime=max(start, date(year, 1, 1)).isoformat(),
-                 endtime=f"{min(end, date(year, 12, 31)).isoformat()}T23:59:59")
+                 endtime=f"{min(end, date(year, 12, 31)).isoformat()}T23:59:59.999")
     expected = int(get_with_retries(config["count_url"], **query).text)
+    if expected == 0:
+        log.info("usgs_fdsn %d: no events in the requested period", year)
+        return {"source": "usgs_fdsn", "files": [], "records": 0}
     response = get_with_retries(config["url"], format="csv", **query)
     path = save_raw("usgs_fdsn", response.content, "csv", stamp, suffix=f"_{year}")
     rows = max(len(response.text.strip().splitlines()) - 1, 0)

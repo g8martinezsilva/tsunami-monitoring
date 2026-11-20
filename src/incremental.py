@@ -123,8 +123,8 @@ def fetch_fdsn_updates(stamp, watermark):
     return {"source": "usgs_fdsn", "files": [str(path)], "records": rows, "candidate_records": rows}
 
 
-def publish_run(summaries, logical_date, run_id, tag):
-    """Validate the saved files, write the Bronze manifest and the arrival marker for Silver.
+def publish_run(summaries, logical_date, run_id, tag, *, mode="incremental", period=None, notify_silver=True):
+    """Validate the saved files and write the Bronze manifest, with a marker for Airflow by default.
     The marker is written only if every file is valid; source errors are raised at the end,
     after the sources that worked have been published."""
     stamp = logical_date.strftime(STAMP_FORMAT)
@@ -135,12 +135,14 @@ def publish_run(summaries, logical_date, run_id, tag):
     problems = [f"{path}: {problem}" for s in new for path in s["files"] if (problem := check_file(path))]
     manifest_path = None
     if new:
-        manifest = {"run_id": run_id, "logical_date": logical_date.isoformat(), "mode": "incremental",
+        manifest = {"run_id": run_id, "logical_date": logical_date.isoformat(), "mode": mode,
                     "sources": new, "problems": problems}
+        if period is not None:
+            manifest["period"] = period
         # The tag keeps names distinct when two DAGs share the same logical date
         manifest_path = bronze_dir() / f"bronze_manifest_{stamp}_{tag}.json"
         manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-        if not problems:
+        if not problems and notify_silver:
             marker = bronze_dir() / MARKERS / manifest_path.name
             marker.parent.mkdir(exist_ok=True)
             marker.write_text(str(manifest_path), encoding="utf-8")

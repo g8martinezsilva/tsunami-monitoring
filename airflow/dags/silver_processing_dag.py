@@ -6,10 +6,9 @@ For each new Bronze run, the preprocessing of src/silver.py writes
 datalake_silver/<topic>/<topic>_YYYYMMDD_HHMMSS.parquet files (one folder per topic,
 so each folder has a single schema: earthquakes, tsunami_events, tsunami_bulletins,
 rejected_records) and the run manifests in datalake_silver/_manifests/, the load of
-src/load.py upserts them into the canonical model, and the marker is removed. Markers
-are removed only after a successful load, and the database load is an upsert, so
-processing is idempotent. After each load, src/matching.py links tsunamis and bulletins to
-their earthquakes in event_relation (Workshop 3).
+src/load.py upserts them into the canonical model. After the load commits, src/matching.py
+reconciles links in event_relation. Markers are cleared after matching commits, so a
+failed matching attempt can be retried using the data already saved in Bronze and Silver.
 """
 
 import logging
@@ -90,7 +89,7 @@ def silver_processing():
             connection.close()
 
     @task
-    def clear_markers(silver_runs, loaded):
+    def clear_markers(silver_runs):
         for run in silver_runs:
             (bronze_dir() / MARKERS / run["bronze_manifest"]).unlink(missing_ok=True)
         return [run["bronze_manifest"] for run in silver_runs]
@@ -99,8 +98,7 @@ def silver_processing():
     silver_runs = bronze_to_silver(manifests)
     loaded = load_to_database(silver_runs)
     wait_for_bronze >> manifests
-    clear_markers(silver_runs, loaded)
-    link_events(loaded)
+    link_events(loaded) >> clear_markers(silver_runs)
 
 
 silver_processing()
