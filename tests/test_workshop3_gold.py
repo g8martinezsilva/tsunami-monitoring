@@ -237,7 +237,9 @@ class GoldSparkTests(unittest.TestCase):
         self.assertEqual([path.name for path in scratch.rglob("*.parquet")], [archive_eq.name])
 
         outputs = self.gold.run_gold(self.spark, root, self.root / "historical-gold")
-        counts = pd.read_parquet(outputs["governance"]).set_index("source")
+        governance = pd.read_parquet(outputs["governance"])
+        # Per-topic rows only; null-rate rows share the same sources
+        counts = governance.loc[governance["topic"].isin(["earthquakes", "tsunami_bulletins"])].set_index("source")
         fields = ["rows_processed", "unique_observations", "repeated_rows"]
         self.assertEqual(counts.loc["usgs_realtime", fields].tolist(), [4, 3, 1])
         self.assertEqual(counts.loc["ptwc", fields].tolist(), [3, 2, 1])

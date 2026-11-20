@@ -131,3 +131,28 @@ event_matching:
     max_magnitude_difference: 0.5
     auto_accept_distance_km: 25  # Also requires matching magnitude types
   same_usgs_id: true         # identity_candidate: USGS real-time and FDSN records with the same id
+
+# Tsunami Relevance Level (Workshop 1 indicator proposal; computed in the Gold layer, src/gold_indicators.py).
+# A monitoring aid, never a tsunami prediction or warning.
+tsunami_relevance:
+  min_magnitude: 6.0
+  magnitude_points: [[6.0, 1], [7.0, 2], [8.0, 3]]  # [lower bound, points]
+  shallow_depth_km: 70        # 1 point at or above this depth
+  deep_limit_km: 300          # deeper earthquakes are at most LOW
+  history_radius_km: 300      # 1 point if an earlier qualifying HazEL tsunami lies within this distance
+  history_validity_codes: [3, 4]  # probable or definite
+  history_cause_codes: [1]        # earthquake
+  moderate_points: 3
+  high_points: 4
+  official_alert_severities: [Moderate, Severe, Extreme]  # linked CAP bulletin -> OFFICIAL ALERT
+
+# Gold layer settings (src/gold_indicators.py)
+gold:
+  recent_min_magnitude: 4.5   # US1 map of recent earthquakes (USGS real-time feed)
+  region_cell_degrees: 10     # US3 regional baseline: latitude/longitude grid cells
+  run_window_days: 7          # governance: runs counted over the last N days
+  expected_runs_per_day:      # governance: from each DAG's schedule
+    incremental_ingestion: 144
+    silver_processing: 144
+    usgs_fdsn_reconciliation: 1
+    gold_processing: 1

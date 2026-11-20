@@ -25,3 +25,13 @@ def load_sources():
 def load_matching_rules():
     """Thresholds of the event identification across sources (event_matching block)."""
     return load_config()["event_matching"]
+
+
+def load_relevance_rules():
+    """Tsunami Relevance Level parameters (tsunami_relevance block)."""
+    return load_config()["tsunami_relevance"]
+
+
+def load_gold_settings():
+    """Gold layer settings (gold block)."""
+    return load_config()["gold"]

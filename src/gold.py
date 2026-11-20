@@ -27,11 +27,19 @@ GOVERNANCE_SCHEMA = (
     "topic STRING, source STRING, rows_processed BIGINT, unique_observations BIGINT, repeated_rows BIGINT, "
     "missing_coordinates BIGINT, missing_coordinates_pct DOUBLE, incomplete_times BIGINT, "
     "incomplete_times_pct DOUBLE, rejected_records BIGINT, iqr_field STRING, iqr_outliers BIGINT, "
-    "unique_rejected_records BIGINT"
+    "unique_rejected_records BIGINT, field STRING, null_count BIGINT, null_rate_pct DOUBLE, "
+    "last_successful_run_at TIMESTAMP, watermark_at TIMESTAMP, watermark_age_hours DOUBLE, "
+    "load_runs_window BIGINT, failed_load_runs_window BIGINT, dag_id STRING, successful_dag_runs BIGINT, "
+    "failed_dag_runs BIGINT, expected_dag_runs BIGINT, run_compliance_pct DOUBLE, relation_type STRING, "
+    "eligible BIGINT, accepted_links BIGINT, pending_links BIGINT, unmatched BIGINT, coverage_pct DOUBLE"
 )
 STORYTELLING_SCHEMA = (
     "metric STRING, source STRING, year INT, center STRING, magnitude_type STRING, "
-    "bin_start DOUBLE, bin_end DOUBLE, unit STRING, count BIGINT"
+    "bin_start DOUBLE, bin_end DOUBLE, unit STRING, count BIGINT, external_id STRING, event_time TIMESTAMP, "
+    "latitude DOUBLE, longitude DOUBLE, magnitude DOUBLE, depth_km DOUBLE, place STRING, region_cell STRING, "
+    "relevance_level STRING, relevance_points INT, history_tsunamis BIGINT, tsunami_linked BOOLEAN, "
+    "bulletin_source STRING, bulletin_severity STRING, bulletin_sent_at TIMESTAMP, value DOUBLE, "
+    "historical_tsunamis BIGINT, max_magnitude DOUBLE, max_water_height_m DOUBLE"
 )
 
 
@@ -235,8 +243,25 @@ def write_gold(governance, storytelling, gold_dir):
     return paths
 
 
-def run_gold(spark, silver_dir, gold_dir):
-    """Run one Silver-to-Gold refresh and return the paths of the published datasets."""
+def _union(base, parts):
+    for part in parts:
+        base = base.unionByName(part, allowMissingColumns=True)
+    return base.select(*base.columns)
+
+
+def run_gold(spark, silver_dir, gold_dir, context=None, now=None):
+    """Run one Silver-to-Gold refresh and return the paths of the published datasets.
+
+    context: optional database inputs (src/gold_context.py: links, runs, state, dag_runs). Without it,
+    the indicators that need PostgreSQL or Airflow (pipeline state, orchestration, matching coverage,
+    linked bulletins and tsunamis) are left out and everything else is still computed."""
+    from src.config import load_gold_settings, load_matching_rules, load_relevance_rules
+    from src.gold_indicators import (context_frames, governance_indicators, storytelling_indicators,
+                                     tsunami_relevance)
+
+    now = now or datetime.now(timezone.utc)
+    frames = context_frames(spark, context)
+    rules, settings = load_relevance_rules(), load_gold_settings()
     paths = discover_silver(silver_dir)
     if not any(paths.values()):
         raise FileNotFoundError(f"No Workshop 3 Silver Parquet snapshots under {silver_dir}")
@@ -257,8 +282,14 @@ def run_gold(spark, silver_dir, gold_dir):
                 current[topic] = consolidate(frame, topic).persist()
                 cached.callback(current[topic].unpersist)
 
-        governance = governance_metrics(spark, current, rejected)
-        storytelling = storytelling_metrics(spark, current)
+        relevance = tsunami_relevance(current, frames["links"], rules)
+        if relevance is not None:
+            relevance = relevance.persist()
+            cached.callback(relevance.unpersist)
+        governance = _union(governance_metrics(spark, current, rejected), governance_indicators(
+            current, frames, now, settings, load_matching_rules(), with_database=context is not None))
+        storytelling = _union(storytelling_metrics(spark, current),
+                              storytelling_indicators(current, relevance, frames["links"], rules, settings))
         outputs = write_gold(governance, storytelling, gold_dir)
         governance_rows = spark.read.parquet(str(outputs["governance"])).collect()
         for row in governance_rows:
