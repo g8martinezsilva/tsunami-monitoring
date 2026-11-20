@@ -293,6 +293,8 @@ def run_gold(spark, silver_dir, gold_dir, context=None, now=None):
         outputs = write_gold(governance, storytelling, gold_dir)
         governance_rows = spark.read.parquet(str(outputs["governance"])).collect()
         for row in governance_rows:
+            if row.rows_processed is None and row.rejected_records is None:
+                continue  # only the per-topic history rows; the indicator rows are summarized below
             log.info(
                 "Gold input %s/%s: %s processed rows, %s unique observations, %s repeated rows, "
                 "%s processed rejections, %s unique rejections",

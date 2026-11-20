@@ -97,6 +97,7 @@
 \newcommand{\golddate}{20 November 2026, 06:00:20 UTC}
 \newcommand{\manualgoldstamp}{\texttt{20261120\_044653}}
 \newcommand{\dbdate}{20 November 2026, 05:23:51 UTC}
+\newcommand{\indicatorstamp}{\texttt{20261120\_213514}}
 \hypersetup{bookmarksdepth=1}
 \renewcommand{\arraystretch}{1.25}
 % Long file names and code words: allow looser lines and breaks in paths at _ and .
@@ -401,6 +402,27 @@ Indicator & Computation and interpretation \\
 \label{tab:kpis}
 \end{table}
 
+\section{Field, Pipeline and Matching Indicators}
+\label{sec:governance-db}
+The per-topic summaries do not answer two Workshop~1 user stories: whether the data on screen are fresh (US5) and how complete and reliable they are field by field (US6). Gold therefore adds four indicator families, identified by the \path{topic} column (\cref{tab:kpis-db}). Missing values are computed from Silver. The pipeline and matching indicators need state that lives outside Silver: the load runs and watermarks in PostgreSQL, the links in \path{event_relation} and the Airflow run history. The \path{build_gold} task reads these small tables once (\path{src/gold_context.py}) and passes them to Spark, so Gold stays the only data source of the dashboard and Spark needs no JDBC driver. The code is in \path{src/gold_indicators.py}, and the time window and expected runs are parameters in the \path{gold} block of \path{config/sources.yaml}.
+
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{2.6cm}YY@{}}
+\toprule
+Topic & Computation & Finding that justifies it \\
+\midrule
+\path{null_rate} & For every field of every topic and source, the count of null or NaN values among the current observations and its percentage. Lineage columns are left out. & Missing values differ by field rather than by record: NOAA warning status, reported earthquake magnitude and full clock times are often absent (\cref{ch:quality}), while USGS coordinates are always present. \\
+\path{pipeline_state} & Per source: time of the last successful load, loads and failed loads in the last \textit{N} days, the committed watermark and its age in hours at the Gold run. & Polls without new data write no load row, so the age of the watermark, not the number of loads, shows whether a source is current (\cref{sec:airflow-results}). \\
+\path{orchestration} & Per DAG: successful and failed Airflow runs in the last \textit{N} days against the runs its schedule should produce (144 per day for 10-minute schedules, 1 for daily ones), and their ratio. & The stack runs on student laptops that are switched off between sessions, so missed runs are expected and must be visible. \\
+\path{matching} & Per relation and source: eligible observations (earthquake-related NOAA causes, all bulletins), observations with an accepted link, with only pending links, without links, and the coverage percentage. & Matching depends on time precision and on the reported magnitude type (\cref{tab:relations}); coverage shows how much of the record can be shown next to an earthquake. \\
+\bottomrule
+\end{tabularx}
+\caption{Governance indicators read from the database and Airflow, added to the per-topic summaries of \cref{tab:kpis}. $N$ is \texttt{run\_window\_days} (7).}
+\label{tab:kpis-db}
+\end{table}
+
 \chapter{Storytelling Aggregations}
 \label{ch:storytelling}
 \section{Aggregations}
@@ -424,8 +446,31 @@ Bulletins by center & Source and issuing center. & Shows the available NTWC and 
 \label{tab:story-purpose}
 \end{table}
 
+\section{User-Story Indicators}
+\label{sec:story-us}
+The catalog summaries describe coverage, but none of them shows a single recent earthquake, its bulletin or its relevance. Gold therefore adds the indicators in \cref{tab:story-us}, each one mapped to the user story it serves and to the dashboard element planned for Workshop~4. Earthquake links use the USGS identifier, which the real-time and FDSN copies of an event share.
+
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{3cm}YL{1.6cm}L{2.2cm}@{}}
+\toprule
+Metric & Content & User story & Dashboard element \\
+\midrule
+\path{recent_earthquakes} & One row per USGS real-time earthquake with $M\geq4.5$ inside the Pacific rectangle of the FDSN query: time, position, magnitude, depth, place, 10° region cell, the latest accepted linked NTWC/PTWC bulletin (any magnitude) and, for $M\geq6$, the Tsunami Relevance Level with its points. & US1, US2, US4 & Map with 24~h and 7-day filters; event detail panel \\
+\path{regional_baseline} & Per 10° latitude/longitude cell: historical $M\geq6$ FDSN earthquakes, their maximum magnitude, probable or definite NOAA tsunamis and their maximum water height. & US3 & ``Is this unusual here?'' comparison \\
+\path{relevance_level_distribution} & Earthquakes with $M\geq6$ per source and relevance level. & US4 & Indicator KPI cards \\
+\path{relevance_validation} & The two measures proposed in Workshop~1, on the FDSN catalog: tsunami-linked earthquakes rated MODERATE or higher, and earthquakes without a tsunami link rated HIGH or higher. & US4 & Indicator limitations note \\
+\bottomrule
+\end{tabularx}
+\caption{Storytelling indicators added for the Workshop~1 user stories.}
+\label{tab:story-us}
+\end{table}
+
+\paragraph{Tsunami Relevance Level.} Gold implements the rule proposed in Workshop~1 \cite{workshop1}, with every threshold in the \path{tsunami_relevance} block of \path{config/sources.yaml}. An earthquake with $M\geq6$ receives 1, 2 or 3 magnitude points from $M\geq6$, 7 and 8, one depth point at 70~km or shallower, and one history point when an earlier probable or definite (validity 3--4) earthquake-caused NOAA tsunami lies within 300~km. Only tsunamis at least one hour before the earthquake count, and the tsunami linked to that earthquake by \path{caused_by} is excluded, so an earthquake never supports its own score. Distances use the haversine formula in Spark. The level is LOW for 0--2 points, MODERATE for 3 and HIGH for 4--5; an earthquake deeper than 300~km is at most LOW, and a linked bulletin with CAP severity Moderate, Severe or Extreme is shown as OFFICIAL ALERT. Unit tests check the Workshop~1 examples: Tohoku ($M$~9.1, 29~km, an earlier tsunami on 9 March 2011) scores 5 points and is HIGH, and a deep Bonin Islands earthquake stays LOW. The level is a monitoring aid and never a tsunami prediction or warning.
+
 \section{Dashboard Narrative}
-A coastal analyst can first examine how much each source contributes and how complete its observations are. The historical counts and distributions then provide context for a new observation. Governance contributes to the data-quality story US6. The run records and CLI status provide freshness evidence for US5. Looking up recent events on a map and presenting a tsunami-relevance indicator belong to the later dashboard \cite{workshop1,courseproject}.
+A coastal analyst can first examine how much each source contributes and how complete its observations are. The historical counts and distributions then provide context for a new observation. Governance contributes to the data-quality story US6. The run records and CLI status provide freshness evidence for US5. The \path{recent_earthquakes} rows then place the new events on a map with their bulletin and relevance level (US1, US2, US4), and \path{regional_baseline} answers whether an event is unusual for its region (US3). The narrative the analyst should leave with is: \emph{which recent earthquakes deserve attention, what the official centers said about them, how they compare with the 2010--2025 record of their region, and whether the data are fresh enough to brief others}. Drawing these views is the Workshop~4 dashboard \cite{workshop1,courseproject}.
 
 \begin{figure}[htbp]
 \centering
@@ -478,6 +523,7 @@ For each \path{(source, external_id)} key, Gold ranks earthquake rows by source 
 This chapter combines read-only PostgreSQL results collected at \dbdate, Airflow execution records and local task logs, and the published Gold pair \goldstamp. All timestamps reported as evidence use UTC. The files and queries used to check these results are identified in \cref{app:reproduce}.
 
 \section{Airflow Executions and Incremental Loads}
+\label{sec:airflow-results}
 Airflow recorded 28 successful \path{incremental_ingestion} runs at the metadata check. The project database contained 13 successful incremental source loads, all for USGS Realtime. They read 8,630 observations across their input snapshots and recorded three insertions, four business updates, 8,623 unchanged rows and zero rejections. The counts are processing outcomes across loads. A successful poll can have no manifest, and a committed batch can contain only rows counted as unchanged.
 
 \begin{table}[htbp]
@@ -581,13 +627,47 @@ Total Parquet rows & 96 & \\
 \label{tab:story-counts}
 \end{table}
 
+\section{User-Story and Pipeline Indicators}
+\label{sec:indicator-results}
+The indicators of \cref{sec:governance-db,sec:story-us} were added after the pair \goldstamp{} and were produced by two \path{gold_processing} runs in Airflow on the second team machine. The committed sample \path{datalake_gold/samples/} holds the pair \indicatorstamp, read by \path{notebooks/04_gold_preview.ipynb}. That machine had not polled the feeds since 17 November, so its real-time snapshot contains 683 observations instead of 759; the matching links were recomputed with rule version~2 before the run and match \cref{tab:relations}. The pair contains 102 Governance rows and 738 Storytelling rows.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{4.4cm}Y@{}}
+\toprule
+Indicator & Result in \indicatorstamp \\
+\midrule
+Recent earthquakes & 529 inside the Pacific rectangle; 16 with $M\geq6$ (9 MODERATE, 7 LOW); none with an accepted bulletin link. \\
+Regional baseline & 105 cells. The cell lat 30..40, lon 140..150 (Japan) has 118 historical earthquakes, maximum $M$~9.1, 16 tsunamis and a maximum water height of 39.26~m. \\
+Relevance over the FDSN catalog & 1,052 LOW, 785 MODERATE, 92 HIGH. \\
+Validation (Workshop~1 measures) & 89.57\% of the 163 tsunami-linked earthquakes are MODERATE or higher; 1.42\% of the 1,766 others are HIGH. \\
+Matching coverage & \path{caused_by}: 163 of 185 eligible NOAA tsunamis accepted (88.11\%), 12 pending, 10 without a candidate. \path{reports_on}: the PTWC bulletin is pending, the NTWC bulletin has no candidate. \\
+Missing values & 84 field rows, 12 with missing values. Highest: \path{tsunami_bulletin_flag} in FDSN (100\%, a feed-only field), NOAA \path{warning_status_id} (76.47\%), reported earthquake magnitude and depth (15.84\%). \\
+Pipeline state & Last successful loads on 17 November; FDSN and Realtime watermarks 144.7~h and 94.0~h old at the Gold run. The NOAA and CAP rows have no watermark because they were loaded before the bulletin watermark existed. \\
+Orchestration & \path{silver_processing} 21 of 1,008 expected runs (2.08\%), \path{gold_processing} 2 of 7 (28.57\%), incremental DAGs paused on that machine (0\%). \\
+\bottomrule
+\end{tabularx}
+\caption{User-story and pipeline indicators in the sample pair \indicatorstamp.}
+\label{tab:indicator-results}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/gold_recent_relevance_map.png}
+\caption[Recent earthquakes and their relevance level]{Recent USGS earthquakes in \indicatorstamp{} on a Pacific-centred longitude axis. Coloured points have $M\geq6$ and a Tsunami Relevance Level; the level is a monitoring aid, not a prediction.}
+\label{fig:recent-map}
+\end{figure}
+
+The validation agrees with the intent of the indicator: almost nine in ten earthquakes that produced a recorded tsunami score MODERATE or higher, while few earthquakes without one reach HIGH. Both measures depend on the accepted links, so pending links lower the first denominator. The Governance rows also expose the state of that machine honestly: stale watermarks and low run compliance are what the dashboard's data-health panel must make visible before an analyst relies on the map.
+
 \section{Automated Checks and Command-Line Validation}
-The Workshop~3 suite passed 33 local tests with isolated PostgreSQL/PostGIS and eight Airflow and Spark tests in the project image. The checks cover replay, revisions, load rollback, review behavior, marker recovery and reading Gold. The notebook produced identical results from the repository root and \path{notebooks/}. Checks covered incomplete Gold pairs, the Silver fallback and a two-pair sample with a legacy duplicate. Independent NumPy and SciPy calculations verified the statistics and Spearman coefficient.
+The Workshop~3 suite passed 33 local tests with isolated PostgreSQL/PostGIS and 13 Airflow and Spark tests in the project image, five of which check the indicators of \cref{sec:indicator-results}, including the Workshop~1 relevance examples. The checks cover replay, revisions, load rollback, review behavior, marker recovery and reading Gold. The notebook produced identical results from the repository root and \path{notebooks/}. Checks covered incomplete Gold pairs, the Silver fallback and a two-pair sample with a legacy duplicate. Independent NumPy and SciPy calculations verified the statistics and Spearman coefficient.
 
 The current \path{ingest.py} reuses extraction, Silver, PostgreSQL loading and matching. The verified command-line scope is a one-day historical run with local HTTP fixtures against isolated PostGIS, repeated incremental polls, source errors, exit codes and a read-only status request to the project database. Repeating the fixture historical load preserved two observations, and replaying the same incremental response preserved the committed watermarks and observation count. A revised fixture updated the existing observation. The full historical date range was outside the validation scope.
 
 \paragraph{Pending submission evidence.}
-Attach Airflow Grid or task-log screenshots for the selected incremental, Silver and Gold executions in \cref{tab:airflow-examples}. Include the two published Parquet samples if the submission requires checked-in Gold artifacts. The tables document the verified execution and dataset results for this draft.
+Attach Airflow Grid or task-log screenshots for the selected incremental, Silver and Gold executions in \cref{tab:airflow-examples}. The Gold samples \indicatorstamp{} are checked in under \path{datalake_gold/samples/}, and \path{notebooks/04_gold_preview.ipynb} shows their contents.
 
 \chapter{Discussion}
 The Gold pair captures what was present in the saved Silver files at its publication time. Realtime contributes observations from a rolling feed captured in snapshots, while FDSN and HazEL apply historical and geographic filters. Bulletin counts reflect the few CAP messages captured from the two feeds. Official centers can publish several messages for one episode, and a missed feed window can limit coverage.
@@ -596,7 +676,7 @@ Matching depends on the supplied times, locations and magnitudes. Incomplete NOA
 
 The four largest NOAA heights carry the landslide cause code. This pattern suggests an exploratory hypothesis that the upper tail of reported heights differs by documented cause. Assessing it would require comparable measurements and case-level evidence about how the heights were recorded.
 
-Historical and recent comparisons in Workshop~4 should state the observation windows and harmonize thresholds for any rate comparison. The full monitoring interface and tsunami-relevance indicator belong to that stage. The Workshop~3 datasets provide source coverage, quality evidence, and descriptive context for that work \cite{courseproject}.
+Historical and recent comparisons in Workshop~4 should state the observation windows and harmonize thresholds for any rate comparison. The Tsunami Relevance Level is already computed in Gold; the sensitivity analysis proposed in Workshop~1 (magnitude limits $\pm0.5$, depth 50--100~km, history radius 200--500~km) and the monitoring interface belong to that stage. The Workshop~3 datasets provide source coverage, quality evidence, and descriptive context for that work \cite{courseproject}.
 
 \chapter{Conclusions and Open Questions}
 Workshop~3 connects scheduled source polling to a transactional canonical load and a separate analytical Gold layer. The recorded incremental runs show insertion, revision, and replay outcomes for observations identified by source and external ID. The selected Gold publication counts 2,912 observations across five sources. The PostgreSQL check at an earlier cutoff counts 2,911.
