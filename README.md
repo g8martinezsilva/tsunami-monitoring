@@ -143,3 +143,21 @@ The script creates `config/geographic_reference/pacific_maritime_regions.geojson
 - Pipeline samples: [datalake_bronze/samples/](datalake_bronze/samples/), [datalake_silver/samples/](datalake_silver/samples/)
 - Silver exploration notebook: [notebooks/02_silver_exploration.ipynb](notebooks/02_silver_exploration.ipynb)
 - Medallion architecture diagram: [docs/architecture_medallion.md](docs/architecture_medallion.md)
+
+## Workshop 3 deliverables
+
+- Report: [workshop_3/report/Team8_Workshop3_Tsunami.pdf](workshop_3/report/Team8_Workshop3_Tsunami.pdf) (LaTeX source `Team8_Workshop3_Tsunami.tex`)
+- Exploratory notebook: [notebooks/03_data_quality.ipynb](notebooks/03_data_quality.ipynb)
+- Gold preview notebook: [notebooks/04_gold_preview.ipynb](notebooks/04_gold_preview.ipynb)
+- Gold samples: [datalake_gold/samples/](datalake_gold/samples/)
+- Details, components and run steps: [workshop_3/README.md](workshop_3/README.md)
+
+### Gold layer
+
+With the stack running, trigger the `gold_processing` DAG in Airflow at http://localhost:8080, or run:
+
+```bash
+docker exec tsunami-airflow-scheduler airflow dags trigger gold_processing
+```
+
+The output goes to `datalake_gold/` as a pair of Parquet directories (`governance_*` and `storytelling_*`). Open the exploratory notebook or [Gold preview notebook](notebooks/04_gold_preview.ipynb) in VS Code or Jupyter, select the project Python kernel and run all cells from the repository root or `notebooks/`.

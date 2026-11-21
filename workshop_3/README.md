@@ -12,17 +12,13 @@ Course scope reminder (Team Project Assignment): Workshop 3 covers incremental i
 | Silver | `datalake_silver/` | Cleaned Parquet, one folder per topic | `topic/topic_YYYYMMDD_HHMMSS.parquet` |
 | Gold | `datalake_gold/` | Governance KPIs and storytelling aggregations | `governance_YYYYMMDD_HHMMSS.parquet`, `storytelling_YYYYMMDD_HHMMSS.parquet` |
 
-## Planned components
+## Deliverables
 
-- [x] Silver written to one folder per topic (`src/silver.py`)
-- [x] `airflow/dags/incremental_ingestion_dag.py`: scheduled feeds (`incremental_ingestion`, every 10 minutes) compared by source identifier, and daily USGS FDSN reconciliation (`usgs_fdsn_reconciliation`) using the committed watermark
-- [x] New / updated / unchanged counts per run (`src/load.py`, `sql/03_workshop3.sql`)
-- [x] Event identification across sources (`src/matching.py`, `event_relation`; thresholds in the `event_matching` block of `config/sources.yaml`)
-- [x] PySpark in the Airflow image (`airflow/Dockerfile`, `compose.yaml`, session settings in `src/spark_session.py`)
-- [x] `airflow/dags/gold_processing_dag.py` with its transformations in `src/gold.py`
-- [x] `notebooks/03_data_quality.ipynb` inspects Silver and previews both Gold datasets with Pandas
-- [ ] Gold samples in `datalake_gold/samples/`
-- [ ] `report/Team8_Workshop3_Tsunami.pdf`: Pipeline Improvements and Gold Layer Report
+- [x] [Pipeline Improvements and Gold Layer Report](report/Team8_Workshop3_Tsunami.pdf)
+- [x] [Exploratory notebook](../notebooks/03_data_quality.ipynb)
+- [x] [GitHub repository](https://github.com/g8martinezsilva/tsunami-monitoring)
+- [x] [Gold samples](../datalake_gold/samples/)
+- [x] [Gold preview notebook](../notebooks/04_gold_preview.ipynb)
 
 ## Upgrade an existing Workshop 2 database
 
@@ -111,6 +107,8 @@ docker exec tsunami-airflow-scheduler airflow dags list-runs -d gold_processing
 ```
 
 Open [the data quality notebook](../notebooks/03_data_quality.ipynb) in VS Code or Jupyter. Select the project's Python kernel with Pandas, PyArrow and Matplotlib, then choose **Run All** from the repository root or `notebooks/`. The notebook uses the latest complete Gold pair. If the default Silver root has no topic files, the notebook uses the saved Silver samples. Set `SILVER_DIR` and `GOLD_DIR` before opening the kernel to inspect another run's input and output roots.
+
+Open [the Gold preview notebook](../notebooks/04_gold_preview.ipynb) with the same kernel and choose **Run All** to inspect the saved Gold samples.
 
 Run the integration tests using the installed Airflow and Spark inside the container. The fixtures and outputs are temporary and the tests run without a project database connection.
 
