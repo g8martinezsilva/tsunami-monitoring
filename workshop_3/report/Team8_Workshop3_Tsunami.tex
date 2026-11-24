@@ -172,7 +172,7 @@ The Team~8 Tsunami Monitoring System combines earthquake catalogs, historical ts
 
 A local PySpark task selects current versions across Silver snapshots and writes two Parquet datasets. Governance describes processing volume, completeness and validation outcomes. Storytelling provides yearly counts, measurement distributions and bulletin coverage. The selected Gold pair consolidates 2,955 observations across five sources. Two FDSN reconciliation loads show that replaying 14 observations creates no additional observations.
 
-In the NOAA subset, 32 observations have a known date and an incomplete timestamp. The 209 available maximum water heights have a median of 0.20~m and a mean of 6.42~m, reflecting the long upper tail. Among 172 records classified as earthquake-caused with both measurements, reported earthquake magnitude and maximum water height show a positive rank association (Spearman $\rho=0.471$).
+In the NOAA subset, 32 observations have a known date and an incomplete timestamp. The 209 available maximum water heights have a median of 0.20~m and a mean of 6.42~m, reflecting the long upper tail. Among 172 records classified as earthquake-caused with both measurements, reported earthquake magnitude and maximum water height show a positive rank association (Spearman $\rho=0.471$). A separate curation notebook applies the course pipeline (profiling, outlier detection, imputation, feature engineering and feature selection) to one committed 2010--2025 Bronze run, with bivariate and multivariate analysis, and produces an analysis layer that does not replace the operational Silver topics.
 
     % -------------------------------------------------------------------
     % Contents, list of figures, list of tables, abbreviations
@@ -375,6 +375,79 @@ Interquartile range & 0.62~m & & \\
 
 The notebook recomputes the IQR fences on the consolidated measurements, using $Q_1-1.5\,\mathrm{IQR}$ and $Q_3+1.5\,\mathrm{IQR}$. Governance reports the flags inherited from the original Silver batches. In the consolidated set, 33 heights exceed the upper fence. The largest is 481~m at Tracy Arm, Alaska (NOAA record 6045). The summary retains all finite measurements and uses the flags to identify cases for review \cite[PDF pp.~16--19 and 27--30]{edaguide}.
 
+\chapter{Exploratory Analysis and Data Curation}
+\label{ch:curation}
+The notebook \path{notebooks/05_data_curation.ipynb} applies the curation pipeline of the course to the historical data \cite{curationnb,edaguide}: raw data (Bronze), EDA and profiling, outlier detection, missing-value imputation, feature engineering, feature selection and a curated layer. No machine-learning step is used. Its input is one Bronze run committed in \path{datalake_bronze/samples/historical_20261117_001544/} (1,930 USGS FDSN records and 221 NOAA records, 2010--2025), so the results are the same on every machine and do not depend on when each one polled the real-time feeds. They can therefore differ from the counts of the Gold pair \goldstamp, which also contains later revisions and events. The statistics use pandas and SciPy, and the plots Matplotlib and seaborn \cite{pandas,scipy,seaborn}. \Cref{tab:curation} summarizes each step.
+
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{2.9cm}YY@{}}
+\toprule
+Step & Method & Result \\
+\midrule
+EDA and profiling & Types, missing values, duplicates, seven quality dimensions. & No duplicate identifiers; one record is a nuclear explosion; eight magnitude types in one column. \\
+Univariate and shape & Histograms, box plots, mean, median, IQR, skewness, kurtosis. & Right-skewed USGS depth (2.46) and NOAA water height (10.12) and run-up reports (12.96). \\
+Bivariate & Pearson and Spearman matrices. & \path{magError} and \path{magNst}: $\rho=-0.97$ but $r=-0.35$; water height and run-up reports: $\rho=0.53$ but $r=0.11$. \\
+Multivariate & Pair plot, bubble map, small multiples, partial Spearman. & See \cref{sec:curation-mv}. \\
+Outlier detection & Z-score, IQR and Mahalanobis distance (99\% chi-square limit). & Depth: 99 by Z-score, 297 by IQR and none by IQR after log1p. Mahalanobis: 38 of 1,904 USGS and 8 of 179 NOAA records. \\
+Outlier treatment & Physical limits, log1p, winsorizing for comparison only. & No value outside the limits. Depth skewness falls from 2.46 to 0.90. Real extremes are kept. \\
+Imputation & Mechanism analysis; median by depth class with a flag. & Five quality columns; see \cref{sec:curation-missing}. \\
+Feature engineering & Transforms, energy, classes, calendar fields, region cell, one-hot and standard scores. & 20 USGS candidate features. \\
+Feature selection & Missing $>40\%$, near constant, $|\rho|>0.9$ and VIF filters. & 12 features selected, all with VIF below 1.6. \\
+\bottomrule
+\end{tabularx}
+\caption{Curation pipeline and results of \texttt{05\_data\_curation.ipynb}.}
+\label{tab:curation}
+\end{table}
+
+\section{Bivariate Analysis}
+The distributions are skewed, so Pearson and Spearman are compared (\cref{fig:curation-corr}). The largest gap is between the magnitude error and the number of stations used: the relation is monotonic but strongly non-linear, which Pearson hides. In the NOAA data, earthquake magnitude correlates moderately with maximum water height ($\rho=0.43$, 179 pairs with both values, all causes) and with the number of run-up reports ($\rho=0.52$). These values describe the selected catalogs and not causes. The coefficient of 0.471 in \cref{fig:noaa-magnitude-height} uses a narrower selection.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/curation_usgs_correlation.png}
+\caption[USGS correlation matrices]{Pearson and Spearman correlations of the USGS FDSN variables, using the records where both values of a pair exist.}
+\label{fig:curation-corr}
+\end{figure}
+
+\section{Multivariate Analysis}
+\label{sec:curation-mv}
+The pair plot of earthquake-caused tsunamis rated probable or definite (\cref{fig:curation-pair}) shows height growing with magnitude and with run-up reports, with no clear pattern for depth. In the 170 events with all the values, the Spearman correlation between magnitude and height is 0.47. Controlling for depth it stays at 0.49, and controlling for the number of run-up reports it falls to 0.12. The last value must be read with care: the number of reports is partly a consequence of the size of the tsunami, so controlling for it removes part of the real effect. The bubble map (\cref{fig:curation-map}) combines position, magnitude and depth class: 1,459 of 1,930 records are shallow, and the deep ones appear along subduction zones such as Tonga--Fiji, Japan and South America.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=.82\textwidth]{figures/curation_pairplot.png}
+\caption[Pair plot of earthquake-caused tsunamis]{Pair plot of earthquake-caused NOAA tsunamis by validity. Depth and height are base-10 logarithms and run-up reports use log1p.}
+\label{fig:curation-pair}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/curation_bubble_map.png}
+\caption[Position, magnitude and depth class]{USGS FDSN records of 2010--2025 by position, magnitude (bubble size) and depth class. The map includes the nuclear explosion that the curation step removes.}
+\label{fig:curation-map}
+\end{figure}
+
+\section{Outliers}
+Z-score and IQR disagree because the variables are skewed: the IQR rule flags 15.4\% of the depths, and none after the log transform. The Mahalanobis distance ranks the 2011 Tohoku, 2025 Kamchatka and 2010 Maule earthquakes first. They are real and are the events the system exists to study, so the only record removed is the nuclear explosion. Skewed variables are transformed, and winsorizing is reported only for comparison.
+
+\section{Missing Values and Imputation}
+\label{sec:curation-missing}
+Missing USGS quality values are not scattered: they follow the year, because the catalog changed the fields it publishes (\cref{fig:curation-missing}; Cram\'er's $V$ between 0.86 and 0.97 for the six columns with more than 5\% missing). This is consistent with values missing at random given the year. NOAA earthquake magnitude and depth are missing in none of the 185 earthquake-caused events and in 35 of the other 36, so those gaps are structural.
+
+Workshop~2 stated that missing values are never imputed, and this remains true for the operational Silver layer, the database, the matching and the Tsunami Relevance Level. The curated layer imputes only five quality indicators (\path{dmin}, \path{horizontalError}, \path{depthError}, \path{gap} and \path{rms}), in separate columns with a flag. Columns with more than 40\% missing are dropped, and coordinates, times, water heights and structural gaps are not imputed. In a test that hides 20\% of the known values 30 times, the median by depth class had, at three decimals, a mean absolute error equal to or lower than the mean and the overall median in the five columns, with small differences (for example 1.88 against 1.92 for \path{dmin}). The test cannot cover 2010--2014, when some columns hardly exist, and imputation reduces the variance (the standard deviation of \path{dmin} falls from 3.74 to 3.22). The imputed columns must not be used for trends over time.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/curation_missing_by_year.png}
+\caption[Missing USGS values per year]{Percentage of missing USGS FDSN quality values per year.}
+\label{fig:curation-missing}
+\end{figure}
+
+\section{Feature Engineering, Selection and Curated Layer}
+The derived features are log transforms, radiated energy ($\log_{10}E = 1.5M + 4.8$), depth and magnitude classes, year and month, the 10-degree region cell used in Gold, a longitude that is continuous across the antimeridian, and a one-hot magnitude type with rare types grouped. The filters drop three columns with too many missing values, three near-constant categories, the energy (redundant with magnitude), the raw depth (redundant with its logarithm), the reference category and the two class codes (VIF above 5). The selected features are magnitude, log depth, latitude, longitude, year, month, log gap, RMS, log \path{dmin}, log horizontal error, log depth error and the \path{mwc} type indicator. The result is written to \path{datalake_silver/samples/curated/}: 1,929 earthquakes and 221 tsunamis, with the original values next to the imputed ones.
+
 \chapter{Governance KPIs}
 \label{ch:governance}
 Gold writes one observation summary per topic and source, plus a rejection summary per source where rejection rows exist. In \cref{tab:kpis}, $N$ is the number of unique observations for an observation summary. The two rates divide by $N$ and are rounded to two decimal places. \Cref{tab:gold-quality} gives the measured counts that motivate the indicators.
@@ -511,11 +584,9 @@ PySpark is the Python interface to Apache Spark. The project uses its DataFrame 
 
 \section{Experimentation Notes}
 \label{sec:spark-experiments}
-Two attempts to run Spark failed before the configuration above worked. Both were found with a short test that read every Silver topic folder inside the Airflow image and counted the rows before and after keeping the latest version of each key.
+The first attempt to read the Silver layer with Spark failed. It was found with a short test that read every Silver topic folder inside the Airflow image and counted the rows before and after keeping the latest version of each key.
 
 \paragraph{Nanosecond timestamps.} The first read stopped with \texttt{Illegal Parquet type: INT64 (TIMESTAMP(NANOS,true))}. pandas writes timestamps with nanosecond resolution by default, and Spark~3.5 cannot read that Parquet type. Silver now writes microseconds (\texttt{coerce\_timestamps="us"} in \path{src/silver.py}), and the Silver files already on disk, including the committed samples, were rewritten in that format. Gold keeps a compatibility read for older files (\cref{sec:gold-transforms}). After the change, the same test read 7,836 earthquake rows in 8~s and kept 2,612 current observations, the duplicate pattern that \path{repeated_rows} reports.
-
-\paragraph{A container user without a home directory.} The first Spark start inside the container failed while launching the Java gateway. Spark tried to create its dependency cache in \texttt{\textasciitilde/.ivy2}, but the Airflow container runs with a numeric user ID (\path{AIRFLOW_UID}) that has no home directory, so the path resolved to \texttt{?/.ivy2}. The Spark launch scripts also call \texttt{ps}, which the slim base image does not include. The Dockerfile now installs \texttt{procps}, and \path{src/spark_session.py} sets \texttt{spark.jars.ivy} and \texttt{spark.local.dir} to \path{/tmp}. These fixes do not depend on the user ID, so the image works on every team laptop.
 
 \section{Gold DAG}
 The \path{gold_processing} DAG runs daily at 06:00 UTC with catchup disabled and permits manual runs. Its \path{build_gold} task starts one Spark session, calls \path{src/gold.py}, records the input and output counts and stops the session. The completed pair is published to \path{datalake_gold/} under one UTC stamp. Each Parquet dataset is a directory with its data part and a \path{_SUCCESS} marker. The notebook opens the latest complete pair with the same stamp \cite{airflow}.
@@ -646,7 +717,7 @@ Total Parquet rows & 816 & \\
 
 \section{User-Story and Pipeline Indicators}
 \label{sec:indicator-results}
-The indicators of \cref{sec:governance-db,sec:story-us} are read from the definitive sample pair \goldstamp{} in \path{datalake_gold/samples/}. The Gold preview notebook presents the same data.
+The indicators of \cref{sec:governance-db,sec:story-us} are read from the definitive sample pair \goldstamp{} in \path{datalake_gold/samples/}. The Gold preview notebook presents the same data. After this pair was published, a review found that its 1,941 FDSN earthquakes include 12 of 2026, added by the daily reconciliation, whose query has no end date. A recent earthquake could then be part of its own historical baseline. \path{src/gold_indicators.py} now limits the regional baseline, the FDSN level distribution and the validation to 2010--2025 (\path{historical_years}). On a 2010--2025 catalog the corrected code gives 105 cells with 1,929 earthquakes, 1,052 LOW, 785 MODERATE and 92 HIGH, and the validation gives 89.57\% of 163 and 1.42\% of 1,766. The difference in the published baseline is those 12 earthquakes, in 11 cells.
 \begin{table}[htbp]
 \centering
 \small
@@ -704,7 +775,7 @@ Historical and recent comparisons in Workshop~4 should state the observation win
 \chapter{Conclusions and Open Questions}
 Workshop~3 connects scheduled source polling to a transactional canonical load and a separate analytical Gold layer. The recorded incremental runs show insertion, revision, and replay outcomes for observations identified by source and external ID. The selected Gold publication and the PostgreSQL check after reconciliation each count 2,955 observations across five sources.
 
-The 32 NOAA records with incomplete clocks support yearly counts and require wider windows for matching. The median and IQR describe the centre of a height distribution with a long upper tail. The positive magnitude--height association describes the complete earthquake-caused pairs, whose heights vary even at similar magnitudes. The dashboard stage still needs to decide how to communicate link confidence and source coverage alongside the historical baseline.
+The 32 NOAA records with incomplete clocks support yearly counts and require wider windows for matching. The median and IQR describe the centre of a height distribution with a long upper tail. The positive magnitude--height association describes the complete earthquake-caused pairs, whose heights vary even at similar magnitudes. The curation pipeline shows that the extremes are real events, that the missing quality values follow the year of the catalog, and that magnitude and tsunami height remain associated after controlling for depth. The dashboard stage still needs to decide how to communicate link confidence and source coverage alongside the historical baseline.
 
 \section{Reflection}
 The team separated processing volume from the number of current observations after inspecting repeated Silver snapshots. The flat Workshop~2 archives contained source observations missing from the topic-only scan, and their timestamp representation needed a compatibility read. Including the archives with version selection preserved coverage and the original files. The verification also showed why the time of a poll, the commit time and the Gold publication time belong in separate columns. Each records a different stage of the workflow.
@@ -756,6 +827,9 @@ Accessed 16 November 2026.
 \bibitem{teamassignment} Sierra, C. A. \emph{Team Project Assignment: Natural Hazard Monitoring Systems}. Data Analysis Programming, Semester 2026-II. Universidad Distrital Francisco Jos\'e de Caldas. Course handout.
 \bibitem{goldguide} Sierra, C. A. \emph{Workshop No.~3: Silver-to-Gold Pipeline, Governance KPIs, and Storytelling Definition}. Data Analysis Programming, Semester 2026-I. Universidad Distrital Francisco Jos\'e de Caldas. Course handout.
 \bibitem{edaguide} Sierra, C. A. \emph{Data Engineering and Visualization: ETLs, EDAs, Data Curation, and Visual Storytelling}. Semester 2026-I. Universidad Distrital Francisco Jos\'e de Caldas. Course slides.
+\bibitem{curationnb} Sierra, C. A. \emph{Exploratory Data Analysis (EDA) \& Data Curation} and \emph{Data Visualization Gallery}. Data Analysis Programming, practical notebooks. Universidad Distrital Francisco Jos\'e de Caldas.
+\bibitem{scipy} The SciPy community. \emph{SciPy documentation: statistical functions}. \url{https://docs.scipy.org/doc/scipy/reference/stats.html}.
+\bibitem{seaborn} Waskom, M. \emph{seaborn: statistical data visualization}. \url{https://seaborn.pydata.org/}.
 \bibitem{spark353} The Apache Software Foundation. \emph{Apache Spark 3.5.3 Documentation}. \url{https://spark.apache.org/docs/3.5.3/}.
 \bibitem{postgresql} The PostgreSQL Global Development Group. \emph{PostgreSQL 16 Documentation: INSERT}. \url{https://www.postgresql.org/docs/16/sql-insert.html}.
 \bibitem{postgis-distance} PostGIS Project Steering Committee. \emph{PostGIS Reference: ST\_DWithin}. \url{https://postgis.net/docs/ST_DWithin.html}.

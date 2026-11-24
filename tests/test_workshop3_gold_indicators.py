@@ -19,6 +19,7 @@ RULES = {
     "moderate_points": 3, "high_points": 4, "official_alert_severities": ["Moderate", "Severe", "Extreme"],
 }
 SETTINGS = {"recent_min_magnitude": 4.5, "region_cell_degrees": 10, "run_window_days": 7,
+            "historical_years": [2010, 2025],
             "expected_runs_per_day": {"incremental_ingestion": 144, "gold_processing": 1}}
 MATCHING = {"tsunami_to_earthquake": {"cause_codes": [1, 2, 3, 4, 5]}}
 
@@ -50,6 +51,8 @@ class GoldIndicatorTests(unittest.TestCase):
             "earthquakes": s.createDataFrame([
                 # Tohoku: M9.1, 29 km -> 3 + 1 + 1 (earlier tsunami 5412 within 300 km) = 5 -> HIGH
                 ("usgs_fdsn", "usp000hvnu", TOHOKU, 38.297, 142.373, 9.1, "mww", 29.0, "near the east coast of Honshu"),
+                # Same cell, but a 2026 event added by the FDSN reconciliation: not historical
+                ("usgs_fdsn", "us-2026", NOW - timedelta(days=5), 36.0, 141.0, 6.1, "mww", 30.0, "Honshu"),
                 # Bonin: M6.5, 475 km deep -> at most LOW
                 ("usgs_realtime", "us6000u4r9", NOW - timedelta(days=2), 27.9, 140.0, 6.5, "mww", 475.0, "Bonin"),
                 # M6.2, 20 km, no history but a Moderate bulletin -> OFFICIAL ALERT
@@ -117,7 +120,11 @@ class GoldIndicatorTests(unittest.TestCase):
         self.assertEqual(recent.loc["us-alert", "region_cell"], "lat -20..-10, lon -180..-170")
         baseline = story[story["metric"].eq("regional_baseline")].set_index("region_cell")
         self.assertEqual(baseline.loc["lat 30..40, lon 140..150", ["count", "historical_tsunamis"]].tolist(), [1, 2])
+        self.assertEqual(baseline["count"].sum(), 1)  # the 2026 catalog event is not in the baseline
+        levels = story[story["metric"].eq("relevance_level_distribution")]
+        self.assertEqual(levels.loc[levels["source"].eq("usgs_fdsn"), "count"].sum(), 1)
         validation = story[story["metric"].eq("relevance_validation")]
+        self.assertEqual(validation["count"].sum(), 1)
         self.assertEqual(validation.set_index("tsunami_linked").loc[True, "value"], 100.0)
 
     def test_governance_pipeline_state_orchestration_and_matching(self):

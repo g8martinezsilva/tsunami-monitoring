@@ -149,6 +149,7 @@ The script creates `config/geographic_reference/pacific_maritime_regions.geojson
 - Report: [workshop_3/report/Team8_Workshop3_Tsunami.pdf](workshop_3/report/Team8_Workshop3_Tsunami.pdf) (LaTeX source `Team8_Workshop3_Tsunami.tex`)
 - Exploratory notebook: [notebooks/03_data_quality.ipynb](notebooks/03_data_quality.ipynb)
 - Gold preview notebook: [notebooks/04_gold_preview.ipynb](notebooks/04_gold_preview.ipynb)
+- EDA and data curation notebook: [notebooks/05_data_curation.ipynb](notebooks/05_data_curation.ipynb), with its committed [input](datalake_bronze/samples/historical_20261117_001544/) and [curated output](datalake_silver/samples/curated/)
 - Gold samples: [datalake_gold/samples/](datalake_gold/samples/)
 - Details, components and run steps: [workshop_3/README.md](workshop_3/README.md)
 

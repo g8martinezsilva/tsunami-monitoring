@@ -3,7 +3,7 @@
 Storytelling (functional user, a Pacific monitoring analyst):
 - recent_earthquakes (US1, US2, US4): USGS real-time earthquakes with their map position, the
   official bulletin linked to them and their Tsunami Relevance Level.
-- regional_baseline (US3): historical M>=6 earthquakes and tsunamis per latitude/longitude cell.
+- regional_baseline (US3): historical (2010-2025) M>=6 earthquakes and tsunamis per latitude/longitude cell.
 - relevance_level_distribution and relevance_validation (US4): the indicator over the catalog and
   the two validation measures proposed in Workshop 1.
 
@@ -79,6 +79,13 @@ def in_query_area(latitude, longitude):
     lon360 = F.when(longitude < 0, longitude + 360).otherwise(longitude)
     return (latitude.between(area["minlatitude"], area["maxlatitude"])
             & (lon360.between(west, east) | longitude.between(west, east)))
+
+
+def in_historical_period(time, settings):
+    """Inside the historical baseline years. The daily FDSN reconciliation has no end date, so the
+    catalog also receives recent earthquakes: they must not be part of their own baseline."""
+    first, last = settings["historical_years"]
+    return F.year(time).between(first, last)
 
 
 def region_cell(latitude, longitude, degrees):
@@ -204,13 +211,16 @@ def storytelling_indicators(current, relevance, links, rules, settings):
                      .withColumn("metric", F.lit("recent_earthquakes")).withColumn("count", F.lit(1).cast("long")))
 
         # US3: historical baseline per region cell (FDSN catalog and HazEL tsunamis)
-        historical = (eq.where((F.col("source") == "usgs_fdsn") & (F.col("magnitude") >= rules["min_magnitude"]))
+        historical = (eq.where((F.col("source") == "usgs_fdsn") & (F.col("magnitude") >= rules["min_magnitude"])
+                               & in_historical_period(F.col("event_time"), settings))
                       .withColumn("region_cell", region_cell(F.col("latitude"), F.col("longitude"), degrees))
                       .groupBy("region_cell").agg(F.count("*").alias("count"),
                                                   F.max("magnitude").alias("max_magnitude")))
         if "tsunami_events" in current:
             ts = current["tsunami_events"]
-            tsunamis = (ts.where(_col(ts, "event_validity", "long").isin(rules["history_validity_codes"]))
+            ts_time = F.coalesce(_col(ts, "event_date", "date").cast("timestamp"), F.col("event_time"))
+            tsunamis = (ts.where(_col(ts, "event_validity", "long").isin(rules["history_validity_codes"])
+                                 & in_historical_period(ts_time, settings))
                         .withColumn("region_cell", region_cell(F.col("latitude"), F.col("longitude"), degrees))
                         .where(F.col("region_cell").isNotNull())
                         .groupBy("region_cell").agg(F.count("*").alias("historical_tsunamis"),
@@ -222,11 +232,14 @@ def storytelling_indicators(current, relevance, links, rules, settings):
                      .withColumn("metric", F.lit("regional_baseline")))
 
     if relevance is not None:
-        parts.append(relevance.groupBy("source", "relevance_level").count()
+        # The FDSN catalog counts only its historical period; real-time keeps every current event
+        scored = relevance.where((F.col("source") != "usgs_fdsn")
+                                 | in_historical_period(F.col("event_time"), settings))
+        parts.append(scored.groupBy("source", "relevance_level").count()
                      .withColumn("metric", F.lit("relevance_level_distribution")))
         # Workshop 1 validation measures, only meaningful once tsunamis are linked to earthquakes
         if links.where(F.col("relation_type") == "caused_by").limit(1).count():
-            catalog = relevance.where(F.col("source") == "usgs_fdsn")
+            catalog = scored.where(F.col("source") == "usgs_fdsn")
             raised = F.col("relevance_level").isin("MODERATE", "HIGH", "OFFICIAL ALERT")
             high = F.col("relevance_level").isin("HIGH", "OFFICIAL ALERT")
             validation = catalog.groupBy("tsunami_linked").agg(

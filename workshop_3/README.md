@@ -19,6 +19,7 @@ Course scope reminder (Team Project Assignment): Workshop 3 covers incremental i
 - [x] [GitHub repository](https://github.com/g8martinezsilva/tsunami-monitoring)
 - [x] [Gold samples](../datalake_gold/samples/)
 - [x] [Gold preview notebook](../notebooks/04_gold_preview.ipynb)
+- [x] [EDA and data curation notebook](../notebooks/05_data_curation.ipynb)
 
 ## Upgrade an existing Workshop 2 database
 
@@ -75,6 +76,10 @@ The Silver DAG clears arrival markers after both the load and matching commit. A
 
 The candidate queries use indexed time windows and exact source identifiers. Existing links are also reassessed when they fall outside a window. With the current data volume, keep the complete reconciliation. If it slows down as history grows, use `EXPLAIN (ANALYZE, BUFFERS)` to check before adding a geography index or restricting recomputation to affected events and their earlier links.
 
+## Data curation
+
+[05_data_curation.ipynb](../notebooks/05_data_curation.ipynb) applies the course pipeline (raw data, EDA and profiling, outlier detection, imputation, feature engineering, feature selection, curated layer) without machine learning. It reads one committed Bronze run, [historical_20261117_001544](../datalake_bronze/samples/historical_20261117_001544/) (2010–2025), so it gives the same results on every machine, and writes [datalake_silver/samples/curated/](../datalake_silver/samples/curated/). Imputed values stay in separate flagged columns; the DAGs, the database, the matching and Gold do not use them. Install the new packages with `pip install -r requirements.txt`.
+
 ## Gold indicators
 
 Gold reads the topic directories and the flat historical Parquet files at the root of `SILVER_DIR` with one local Spark session. Each `(source, external_id)` key contributes one current row across both layouts. USGS selection starts with `source_updated_at`. CAP selection uses `atom_updated_at` when present and otherwise `sent_at`. For NOAA and ties in source revisions, the order uses the Bronze run time in the manifest name, falling back to Silver processing time or the Silver filename stamp. Silver processing time, the original path and serialized row values settle remaining ties.
@@ -88,7 +93,7 @@ Gold counts observations by source. Physical-event counts would require verified
 | Governance | Processed rows, unique observations and rows beyond the first for each key, by topic and source. Quality counts and percentages use the current observations. Missing coordinates means either coordinate is absent. Incomplete time means `event_time` or, for CAP, `sent_at` is absent. Each percentage divides by `unique_observations`. Depth and maximum water height outlier counts reuse the selected rows' Silver IQR flags. The `rejected_records` topic reports processed and unique rejections by source. |
 | Storytelling | Annual earthquake and historical tsunami observations with a known calendar year. NOAA's `event_date` contributes a year even when its timestamp is null. Finite earthquake magnitudes use 0.5-wide bins grouped by magnitude type. Finite maximum tsunami water heights use 1 m bins. Bin lower bounds are inclusive, and upper bounds are exclusive. Bulletin counts are by issuing center. |
 | Governance (user stories US5, US6) | `null_rate`: missing values per field, topic and source. `pipeline_state`: last successful load and watermark age per source (PostgreSQL). `orchestration`: successful Airflow runs against the runs expected from each schedule over `run_window_days`. `matching`: eligible tsunamis and bulletins, accepted and pending links, coverage (`event_relation`). Code: `src/gold_indicators.py`, inputs read by `src/gold_context.py`. |
-| Storytelling (US1–US4) | `recent_earthquakes`: USGS real-time earthquakes with M ≥ 4.5 inside the FDSN query area, with region cell, linked bulletin and Tsunami Relevance Level (M ≥ 6). `regional_baseline`: historical M ≥ 6 earthquakes and probable/definite tsunamis per 10° cell. `relevance_level_distribution` and `relevance_validation`: the Workshop 1 indicator over the catalog. Parameters: `tsunami_relevance` and `gold` blocks of `config/sources.yaml`. The level is a monitoring aid, not a tsunami prediction. |
+| Storytelling (US1–US4) | `recent_earthquakes`: USGS real-time earthquakes with M ≥ 4.5 inside the FDSN query area, with region cell, linked bulletin and Tsunami Relevance Level (M ≥ 6). `regional_baseline`: historical (2010–2025, `historical_years`) M ≥ 6 earthquakes and probable/definite tsunamis per 10° cell. `relevance_level_distribution` and `relevance_validation`: the Workshop 1 indicator over the catalog. Parameters: `tsunami_relevance` and `gold` blocks of `config/sources.yaml`. The level is a monitoring aid, not a tsunami prediction. |
 
 `rejected_records` counts each rejection row from every saved run, including replays. `unique_rejected_records` counts distinct `(source, external_id, bronze_file, locator, reason)` combinations. The same Bronze record rejected again for the same reason counts once even if its external ID is missing. A different Bronze file, location within that file or rejection reason contributes a separate record.
 

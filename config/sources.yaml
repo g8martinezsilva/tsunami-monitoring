@@ -150,6 +150,7 @@ tsunami_relevance:
 gold:
   recent_min_magnitude: 4.5   # US1 map of recent earthquakes (USGS real-time feed)
   region_cell_degrees: 10     # US3 regional baseline: latitude/longitude grid cells
+  historical_years: [2010, 2025]  # baseline and validation period; the FDSN reconciliation also adds newer events
   run_window_days: 7          # governance: runs counted over the last N days
   expected_runs_per_day:      # governance: from each DAG's schedule
     incremental_ingestion: 144

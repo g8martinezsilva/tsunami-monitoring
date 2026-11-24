@@ -17,3 +17,7 @@ pyproj>=3.6
 fg-data-profiling>=4.18  # imported as data_profiling; renamed successor of ydata-profiling
 ipykernel>=6.29  # run the notebook from VS Code or Jupyter
 ipywidgets>=8.1  # progress bars of the profiling reports (avoids the tqdm IProgress warning)
+
+# Data curation notebook (notebooks/05_data_curation.ipynb)
+seaborn>=0.13
+scipy>=1.13
