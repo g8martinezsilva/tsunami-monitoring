@@ -140,7 +140,8 @@
             Repository: \url{https://github.com/g8martinezsilva/tsunami-monitoring}\\[0.2cm]
             Branch: \texttt{feat/workshop3-incremental-gold}\\[0.2cm]
             Exploratory notebook: \href{https://github.com/g8martinezsilva/tsunami-monitoring/blob/feat/workshop3-incremental-gold/notebooks/03_data_quality.ipynb}{\texttt{notebooks/03\_data\_quality.ipynb}}\\[0.2cm]
-            Gold preview notebook: \href{https://github.com/g8martinezsilva/tsunami-monitoring/blob/feat/workshop3-incremental-gold/notebooks/04_gold_preview.ipynb}{\texttt{notebooks/04\_gold\_preview.ipynb}}
+            Gold preview notebook: \href{https://github.com/g8martinezsilva/tsunami-monitoring/blob/feat/workshop3-incremental-gold/notebooks/04_gold_preview.ipynb}{\texttt{notebooks/04\_gold\_preview.ipynb}}\\[0.2cm]
+            Data curation notebook: \href{https://github.com/g8martinezsilva/tsunami-monitoring/blob/feat/workshop3-incremental-gold/notebooks/05_data_curation.ipynb}{\texttt{notebooks/05\_data\_curation.ipynb}}
             \vfill
 
             \today
@@ -316,7 +317,7 @@ Analytics & Silver exploration in pandas. & PySpark consolidation and two publis
 
 \chapter{Data Quality Findings}
 \label{ch:quality}
-The pandas notebook \path{notebooks/03_data_quality.ipynb} uses the published Gold pair \goldstamp{} for source coverage and Governance. For individual NOAA measurements, it reads the Workshop~3 topic snapshots and the flat Workshop~2 Silver archives. It selects the latest Bronze capture per source key, with Silver processing time and the file stamp as fallbacks, following the version ordering in \cref{sec:gold-transforms} \cite{pandas}.
+The pandas notebook \path{notebooks/03_data_quality.ipynb} reads a Gold pair for source coverage and Governance. The tables and figures of this report use the published pair \goldstamp. The saved outputs of the notebook come from an earlier pair of the same day (\texttt{20261121\_051639}), so its Gold counts are lower (2,937 unique observations instead of 2,955); its NOAA results are the same. For individual NOAA measurements, it reads the Workshop~3 topic snapshots and the flat Workshop~2 Silver archives. It selects the latest Bronze capture per source key, with Silver processing time and the file stamp as fallbacks, following the version ordering in \cref{sec:gold-transforms} \cite{pandas}.
 
 The EDA starts with completeness, uniqueness and validity checks, then examines the height distribution, yearly coverage and the magnitude--height association \cite[PDF pp.~14, 23, 26 and 31]{edaguide}. The NOAA height and bivariate analyses are from the previously saved Silver exploration and are reported as historical exploratory results. Gold tables and indicators use the definitive sample pair.
 
@@ -344,6 +345,29 @@ Governance counts 20,938 processed observation rows and 2,955 distinct source ke
 Of 221 NOAA observations, nine lack at least one coordinate (4.07\%), 12 lack a finite maximum water height (5.43\%), and 32 lack a full timestamp (14.48\%). The partial timestamps comprise 23 date-only and nine minute-precision records. They contribute to yearly counts and widen the time interval considered in matching. Recorded NOAA clock components are treated as UTC under the Workshop~1 assumption \cite{workshop1}.
 
 All recorded NOAA coordinates are within the normalized bounds. Governance counts two FDSN rejection occurrences and one distinct rejection. The earlier PostgreSQL check found one quarantine record with reason \texttt{event type nuclear explosion} and zero duplicate canonical source keys (\cref{ch:results}).
+
+\section{Data Consistency Between Machines}
+\label{sec:consistency}
+The team works on several laptops, and each one polled the sources at different times. \Cref{tab:consistency} states which data are identical everywhere and which depend on the capture.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{3.6cm}L{2.4cm}Y@{}}
+\toprule
+Data & Same on every machine & Reason \\
+\midrule
+Curation notebook (\cref{ch:curation}) & Yes & Reads one committed Bronze run (2010--2025). \\
+Published Gold pair \goldstamp & Yes & Committed in \path{datalake_gold/samples/}; the source of the Gold tables in this report. \\
+NOAA tsunamis (221) and their links (163 accepted) & Same on the two machines compared & Fixed 2010--2025 query and rule version~2. \\
+FDSN earthquakes & 2010--2025 only & 1,929 on both machines. Later reconciliations add 2026 events (1,941 in the published pair). \\
+USGS Realtime and bulletins & No & Rolling feeds: the result depends on when each machine polled (for example 788 and 683 earthquakes). \\
+Pipeline state and Airflow runs & No & They describe the machine where Gold runs. \\
+\bottomrule
+\end{tabularx}
+\caption{Consistency of the data between the team's machines.}
+\label{tab:consistency}
+\end{table}
 
 \section{Tsunami Water Heights}
 \Cref{tab:noaa-height-stats} summarizes finite maximum water heights from the 221 consolidated NOAA observations. The median of 0.20~m and the middle half from 0.08 to 0.70~m describe the centre and spread. The mean of 6.42~m is sensitive to the large measurements in the upper tail (\cref{fig:noaa-heights}).
@@ -552,7 +576,7 @@ A coastal analyst can first examine how much each source contributes and how com
 \label{fig:magnitudes}
 \end{figure}
 
-The notebook's heatmap (\cref{fig:magnitudes}) shows a concentration of 1,128 \texttt{mww} observations in $[6.0,6.5)$ for FDSN and 525 \texttt{mb} observations in $[4.5,5.0)$ for Realtime. The FDSN historical query covers a broad Pacific bounding box with $M\geq 6$, and its observations in this pair span 2010--2025. Realtime uses the $M\geq 4.5$ rolling feed and the retained snapshots contribute observations from 2026. A comparison of seismic activity would require a common geographic selection, magnitude criterion and temporal baseline \cite{usgsfdsn,usgsfeed}.
+The notebook's heatmap (\cref{fig:magnitudes}) shows a concentration of 1,128 \texttt{mww} observations in $[6.0,6.5)$ for FDSN and 525 \texttt{mb} observations in $[4.5,5.0)$ for Realtime. The FDSN historical query covers a broad Pacific bounding box with $M\geq 6$, and its observations in this pair span 2010--2025, plus 12 of 2026 added by the daily reconciliation. Realtime uses the $M\geq 4.5$ rolling feed and the retained snapshots contribute observations from 2026. A comparison of seismic activity would require a common geographic selection, magnitude criterion and temporal baseline \cite{usgsfdsn,usgsfeed}.
 
 \section{Exploratory Tsunami Findings}
 \subsection{Annual NOAA Coverage}
@@ -880,7 +904,7 @@ Bulletins by center & \path{ptwc} & \texttt{ptwc} & 3 \\
 \chapter{Reproducing the Workshop 3 Results}
 \label{app:reproduce}
 \section{Read Published Results}
-Run \path{notebooks/03_data_quality.ipynb} with the project kernel from the repository root or \path{notebooks/}. Use the saved Silver inputs and set \path{GOLD_DIR=datalake_gold/samples} before starting the kernel to select Gold stamp \goldstamp. The NOAA exploratory results also depend on the selected Silver snapshots. With the PostgreSQL settings from the README, inspect the current database state using the status command.
+Run \path{notebooks/03_data_quality.ipynb} with the project kernel from the repository root or \path{notebooks/}. Use the saved Silver inputs and set \path{GOLD_DIR=datalake_gold/samples} before starting the kernel to select Gold stamp \goldstamp. The NOAA exploratory results also depend on the selected Silver snapshots. \path{notebooks/05_data_curation.ipynb} needs no local data, because its input is committed. With the PostgreSQL settings from the README, inspect the current database state using the status command.
 
 \begin{lstlisting}[language=bash,numbers=none]
 python ingest.py --mode status
