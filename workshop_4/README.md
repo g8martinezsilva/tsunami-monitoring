@@ -13,8 +13,8 @@ Course scope reminder (Team Project Assignment): Workshop 4 covers temporal and 
 
 ## Plan
 
-- [ ] Branch `feat/workshop4-dashboards`, dashboard dependencies in `requirements.txt`, this folder and the report skeleton
-- [ ] Gold additions: duplicate rate, schema compliance rate, outlier rate per numeric field, volume over time, quality thresholds, `historical_vs_current`
+- [x] Branch `feat/workshop4-dashboards`, dashboard dependencies in `requirements.txt`, this folder and the report skeleton
+- [x] Gold additions (`src/gold_dashboard.py`, `gold_dashboard` block of `config/sources.yaml`): duplicate rate, schema compliance rate, outlier rate per numeric field, volume over time, quality thresholds and status, `historical_vs_current`
 - [ ] Clean end-to-end run on one machine (Lina's laptop) and Gold samples
 - [ ] Dashboard layout design and plain-language labels
 - [ ] Shared dashboard code: Gold loading, palette, header

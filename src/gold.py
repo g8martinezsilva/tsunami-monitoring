@@ -1,4 +1,5 @@
-"""Consolidate Silver snapshots and publish the Workshop 3 Gold datasets."""
+"""Consolidate Silver snapshots and publish the Gold datasets (Workshop 3, with the Workshop 4 additions
+of src/gold_dashboard.py)."""
 
 import logging
 from contextlib import ExitStack
@@ -31,7 +32,12 @@ GOVERNANCE_SCHEMA = (
     "last_successful_run_at TIMESTAMP, watermark_at TIMESTAMP, watermark_age_hours DOUBLE, "
     "load_runs_window BIGINT, failed_load_runs_window BIGINT, dag_id STRING, successful_dag_runs BIGINT, "
     "failed_dag_runs BIGINT, expected_dag_runs BIGINT, run_compliance_pct DOUBLE, relation_type STRING, "
-    "eligible BIGINT, accepted_links BIGINT, pending_links BIGINT, unmatched BIGINT, coverage_pct DOUBLE"
+    "eligible BIGINT, accepted_links BIGINT, pending_links BIGINT, unmatched BIGINT, coverage_pct DOUBLE, "
+    # Workshop 4 (src/gold_dashboard.py)
+    "duplicate_rate_pct DOUBLE, silver_topic STRING, schema_rows BIGINT, schema_compliant BIGINT, "
+    "schema_compliance_pct DOUBLE, files_checked BIGINT, files_compliant BIGINT, outlier_values BIGINT, "
+    "outlier_count BIGINT, outlier_rate_pct DOUBLE, period DATE, volume_rows BIGINT, new_observations BIGINT, "
+    "threshold DOUBLE, status STRING"
 )
 STORYTELLING_SCHEMA = (
     "metric STRING, source STRING, year INT, center STRING, magnitude_type STRING, "
@@ -39,7 +45,9 @@ STORYTELLING_SCHEMA = (
     "latitude DOUBLE, longitude DOUBLE, magnitude DOUBLE, depth_km DOUBLE, place STRING, region_cell STRING, "
     "relevance_level STRING, relevance_points INT, history_tsunamis BIGINT, tsunami_linked BOOLEAN, "
     "bulletin_source STRING, bulletin_severity STRING, bulletin_sent_at TIMESTAMP, value DOUBLE, "
-    "historical_tsunamis BIGINT, max_magnitude DOUBLE, max_water_height_m DOUBLE"
+    "historical_tsunamis BIGINT, max_magnitude DOUBLE, max_water_height_m DOUBLE, "
+    # Workshop 4 (src/gold_dashboard.py)
+    "historical_count BIGINT, expected_count DOUBLE, p_value DOUBLE, window_days INT"
 )
 
 
@@ -97,6 +105,20 @@ def _optional_column(frame, name, data_type):
     return F.col(name) if name in frame.columns else F.lit(None).cast(data_type)
 
 
+def snapshot_timestamp(frame):
+    """Capture time of each Silver row: Bronze manifest stamp, then Silver processing time, then file stamp."""
+    silver_file = F.coalesce(_optional_column(frame, "_silver_file", "string"), F.input_file_name())
+    bronze_stamp = F.regexp_extract(
+        _optional_column(frame, "bronze_manifest", "string"), r"^bronze_manifest_(\d{8}_\d{6})(?:_|\.)", 1
+    )
+    file_stamp = F.regexp_extract(silver_file, r"_(\d{8}_\d{6})\.parquet$", 1)
+    return F.coalesce(
+        F.try_to_timestamp(bronze_stamp, F.lit(SPARK_STAMP_FORMAT)),
+        _optional_column(frame, "silver_processed_at", "timestamp"),
+        F.try_to_timestamp(file_stamp, F.lit(SPARK_STAMP_FORMAT)),
+    )
+
+
 def consolidate(frame, topic):
     """Select one current Silver row per source key and retain its occurrence count."""
     row_values = F.to_json(F.struct(*sorted(frame.columns)), {"ignoreNullFields": "false"})
@@ -105,15 +127,7 @@ def consolidate(frame, topic):
     )
     silver_file = F.col("_silver_file")
     processed_at = _optional_column(frame, "silver_processed_at", "timestamp")
-    bronze_stamp = F.regexp_extract(
-        _optional_column(frame, "bronze_manifest", "string"), r"^bronze_manifest_(\d{8}_\d{6})(?:_|\.)", 1
-    )
-    file_stamp = F.regexp_extract(silver_file, r"_(\d{8}_\d{6})\.parquet$", 1)
-    snapshot_at = F.coalesce(
-        F.try_to_timestamp(bronze_stamp, F.lit(SPARK_STAMP_FORMAT)),
-        processed_at,
-        F.try_to_timestamp(file_stamp, F.lit(SPARK_STAMP_FORMAT)),
-    )
+    snapshot_at = snapshot_timestamp(frame)
 
     order = []
     if topic == "earthquakes":
@@ -155,6 +169,8 @@ def governance_metrics(spark, current, rejected=None):
             .withColumn("topic", F.lit(topic))
             .withColumn("iqr_field", F.lit(iqr_field if has_iqr_flag else None))
             .withColumn("repeated_rows", F.col("rows_processed") - F.col("unique_observations"))
+            # Workshop 4: share of processed rows that repeat a key already seen (before consolidation)
+            .withColumn("duplicate_rate_pct", F.round(100.0 * F.col("repeated_rows") / F.col("rows_processed"), 2))
             .withColumn(
                 "missing_coordinates_pct", F.round(100.0 * F.col("missing_coordinates") / F.col("unique_observations"), 2)
             )
@@ -255,18 +271,21 @@ def run_gold(spark, silver_dir, gold_dir, context=None, now=None):
     context: optional database inputs (src/gold_context.py: links, runs, state, dag_runs). Without it,
     the indicators that need PostgreSQL or Airflow (pipeline state, orchestration, matching coverage,
     linked bulletins and tsunamis) are left out and everything else is still computed."""
-    from src.config import load_gold_settings, load_matching_rules, load_relevance_rules
+    from src.config import load_dashboard_settings, load_gold_settings, load_matching_rules, load_relevance_rules
+    from src.gold_dashboard import (apply_thresholds, historical_vs_current, outlier_rates, schema_compliance,
+                                    volume_over_time)
     from src.gold_indicators import (context_frames, governance_indicators, storytelling_indicators,
                                      tsunami_relevance)
 
     now = now or datetime.now(timezone.utc)
     frames = context_frames(spark, context)
     rules, settings = load_relevance_rules(), load_gold_settings()
+    dashboard = load_dashboard_settings()
     paths = discover_silver(silver_dir)
     if not any(paths.values()):
         raise FileNotFoundError(f"No Workshop 3 Silver Parquet snapshots under {silver_dir}")
 
-    current = {}
+    current, raw = {}, {}
     rejected = None
     with TemporaryDirectory(prefix="tsunami-gold-silver-") as scratch, ExitStack() as cached:
         for topic, files in paths.items():
@@ -279,6 +298,7 @@ def run_gold(spark, silver_dir, gold_dir, context=None, now=None):
             if topic == REJECTED:
                 rejected = frame
             else:
+                raw[topic] = frame
                 current[topic] = consolidate(frame, topic).persist()
                 cached.callback(current[topic].unpersist)
 
@@ -287,9 +307,13 @@ def run_gold(spark, silver_dir, gold_dir, context=None, now=None):
             relevance = relevance.persist()
             cached.callback(relevance.unpersist)
         governance = _union(governance_metrics(spark, current, rejected), governance_indicators(
-            current, frames, now, settings, load_matching_rules(), with_database=context is not None))
+            current, frames, now, settings, load_matching_rules(), with_database=context is not None)
+            + schema_compliance(current, paths, dashboard) + outlier_rates(current, dashboard)
+            + volume_over_time(raw, snapshot_timestamp))
+        governance = apply_thresholds(governance, dashboard)
         storytelling = _union(storytelling_metrics(spark, current),
-                              storytelling_indicators(current, relevance, frames["links"], rules, settings))
+                              storytelling_indicators(current, relevance, frames["links"], rules, settings)
+                              + historical_vs_current(current, rules, settings, dashboard, now))
         outputs = write_gold(governance, storytelling, gold_dir)
         governance_rows = spark.read.parquet(str(outputs["governance"])).collect()
         for row in governance_rows:

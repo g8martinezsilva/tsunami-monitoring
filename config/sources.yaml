@@ -157,3 +157,33 @@ gold:
     silver_processing: 144
     usgs_fdsn_reconciliation: 1
     gold_processing: 1
+
+# Workshop 4 Gold additions for the dashboards (src/gold_dashboard.py)
+gold_dashboard:
+  current_window_days: 30     # historical_vs_current: recent window compared with the 2010-2025 rate
+  outlier_fields:             # outlier_rate: IQR rule per numeric field, topic and source
+    earthquakes: [magnitude, depth_km]
+    tsunami_events: [max_water_height, reported_eq_magnitude, reported_eq_depth, num_runups]
+    tsunami_bulletins: [preliminary_magnitude, reported_depth_km]
+  schema:                     # schema_compliance: required fields and valid ranges of the Silver contract
+    earthquakes:
+      required: [external_id, event_time, latitude, longitude, magnitude, depth_km]
+      ranges: {latitude: [-90, 90], longitude: [-180, 180], magnitude: [0, 10], depth_km: [-10, 800]}
+    tsunami_events:
+      required: [external_id, event_date]
+      ranges: {latitude: [-90, 90], longitude: [-180, 180], max_water_height: [0, 1000]}
+    tsunami_bulletins:
+      required: [external_id, sent_at]
+      ranges: {latitude: [-90, 90], longitude: [-180, 180]}
+  thresholds:                 # status column: ok / warning (review for outliers, expected for structural gaps)
+    null_rate_pct_max: 20
+    structural_nulls:         # missing by design: not a quality problem
+      - usgs_fdsn.tsunami_bulletin_flag      # field of the real-time feed only
+      - noaa_hazel.reported_eq_magnitude     # tsunamis not caused by an earthquake
+      - noaa_hazel.reported_eq_depth
+      - noaa_hazel.noaa_earthquake_event_id
+    schema_compliance_pct_min: 99
+    outlier_rate_pct_max: 10
+    watermark_age_hours_max: {usgs_realtime: 1, usgs_fdsn: 48}  # CAP bulletins are rare: no age limit
+    run_compliance_pct_min: 90
+    coverage_pct_min: 80

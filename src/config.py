@@ -35,3 +35,8 @@ def load_relevance_rules():
 def load_gold_settings():
     """Gold layer settings (gold block)."""
     return load_config()["gold"]
+
+
+def load_dashboard_settings():
+    """Workshop 4 Gold additions for the dashboards (gold_dashboard block)."""
+    return load_config()["gold_dashboard"]

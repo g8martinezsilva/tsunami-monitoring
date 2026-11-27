@@ -208,7 +208,28 @@
 % Guide: pipeline or Gold corrections made in this workshop, separate from the Workshop 3 improvements
 % (new governance KPIs, historical-versus-current metric, thresholds), and the end-to-end run.
 \section{Gold Layer Additions}
-% TODO
+The Workshop~3 Gold files lacked four measures required by the governance dashboard and the historical-versus-current comparison required by the course scope. \path{src/gold_dashboard.py} adds them to the same two Parquet files, so both applications still read only Gold \cite{workshop3}. Every threshold and window is a parameter in the \path{gold_dashboard} block of \path{config/sources.yaml}. \Cref{tab:gold-additions} lists the additions.
+
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}L{3.2cm}YL{2.6cm}@{}}
+\toprule
+Gold row & Computation & Dashboard use \\
+\midrule
+\path{duplicate_rate_pct} & Repeated rows divided by processed Silver rows, per topic and source, before keeping the current version of each key. & Duplicate-rate card \\
+\path{schema_compliance} & Current observations with every required field and values inside the valid ranges, and Silver files that contain the required columns. & Schema-compliance card \\
+\path{outlier_rate} & Share of current observations beyond the IQR fences, per numeric field and source. & Outlier-rate chart \\
+\path{volume} & Silver rows processed and observations captured for the first time, per day and source. & Volume-over-time chart \\
+\path{threshold}, \path{status} & Threshold of each indicator and \texttt{ok}, \texttt{warning}, \texttt{review} (outliers, which are real events) or \texttt{expected} (fields missing by design). & Quality table \\
+\path{historical_vs_current} & Real-time earthquakes with $M\geq6$ in the last 30 days per 10-degree cell, against the count expected from the 2010--2025 FDSN rate for 30 days, with the ratio and the Poisson probability of at least that many. & Historical-versus-current panel \\
+\bottomrule
+\end{tabularx}
+\caption{Gold additions for the Workshop~4 dashboards.}
+\label{tab:gold-additions}
+\end{table}
+
+The historical-versus-current comparison uses the same magnitude threshold and the same Pacific query area on both sides, because the real-time feed starts at $M$~4.5 and the catalog at $M$~6. Its probability is descriptive: with about one hundred cells, a few small probabilities are expected by chance, so the dashboard ranks cells instead of declaring any of them anomalous. It is not a forecast. Unit tests cover each addition with fixtures (\path{tests/test_workshop4_gold_dashboard.py}), and the Workshop~3 Gold tests still pass.
 \section{End-to-End Pipeline Run}
 % TODO: clean run Bronze -> Silver -> Gold, on one machine.
 
