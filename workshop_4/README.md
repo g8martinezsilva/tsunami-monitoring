@@ -17,7 +17,7 @@ Course scope reminder (Team Project Assignment): Workshop 4 covers temporal and 
 - [x] Gold additions (`src/gold_dashboard.py`, `gold_dashboard` block of `config/sources.yaml`): duplicate rate, schema compliance rate, outlier rate per numeric field, volume over time, quality thresholds and status, `historical_vs_current`
 - [ ] Clean end-to-end run on one machine (Lina's laptop) and Gold samples
 - [ ] Dashboard layout design and plain-language labels
-- [ ] Shared dashboard code: Gold loading, palette, header
+- [x] Shared dashboard code: `dashboard/gold.py` (latest complete Gold pair, samples fallback, refresh) and `dashboard/theme.py` (Okabe-Ito palette, header, KPI cards, chart defaults)
 - [ ] Governance app (KPI cards, null rates, volume over time, outlier rates, quality table, data health)
 - [ ] Storytelling app (map, relevance level, bulletins, historical vs current, regional baseline, narrative)
 - [ ] Compose service and run instructions
