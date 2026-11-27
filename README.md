@@ -47,6 +47,7 @@ docs/          Project documentation (diagrams, source-status log)
 workshop_1/    Workshop 1 deliverables (report, mapping, samples, download scripts)
 workshop_2/    Workshop 2 deliverables (report and plan)
 workshop_3/    Workshop 3 deliverables (report and plan)
+workshop_4/    Workshop 4 deliverables (dashboards report and screenshots)
 compose.yaml   Docker Compose stack (PostGIS and Airflow)
 ```
 

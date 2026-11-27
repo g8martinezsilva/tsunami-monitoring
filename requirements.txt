@@ -21,3 +21,8 @@ ipywidgets>=8.1  # progress bars of the profiling reports (avoids the tqdm IProg
 # Data curation notebook (notebooks/05_data_curation.ipynb)
 seaborn>=0.13
 scipy>=1.13
+
+# Dashboards (Workshop 4: dashboard/governance_app.py on :8050, dashboard/storytelling_app.py on :8051)
+dash>=4.0,<5
+dash-bootstrap-components>=2.0,<3
+plotly>=6.0

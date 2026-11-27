@@ -1,0 +1,314 @@
+%% Report layout adapted from the Computer Science report template
+%% (Dr Todd R. Jones, University of Reading, based on a template by Dr Varun Ojha),
+%% as required by the course. The template's CS_report.sty settings are included
+%% below so that the whole report lives in this file.
+\documentclass[a4paper,11pt,oneside]{book}
+
+%% ----- Template settings (CS_report.sty) -----
+\usepackage[margin=1.2in]{geometry}
+
+% Sans-serif font
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\renewcommand*\familydefault{\sfdefault}
+\usepackage{slantsc}
+\usepackage{relsize}
+\usefont{T1}{lmss}{m}{n}\selectfont
+\DeclareFontShape{T1}{lmss}{m}{sc}{<->ssub*lmss/m/n}{}
+
+% Math
+\usepackage{sansmath}
+\sansmath
+\usepackage[cmex10]{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+% Code listings
+\usepackage[utf8]{inputenc}
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{codegreen}{rgb}{0,0.6,0.1}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codeblue}{rgb}{0.10,0.00,1.00}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{1.0,1.0,1.0}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codeblue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    frame=none
+}
+\lstset{style=mystyle}
+
+% Figures and tables
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{multirow}
+\usepackage{rotating}
+\usepackage{makecell}
+\usepackage{booktabs}
+
+% List of abbreviations
+\usepackage{enumitem}
+\newlist{abbrv}{itemize}{1}
+\setlist[abbrv,1]{label=,labelwidth=1in,align=parleft,itemsep=0.1\baselineskip,leftmargin=!}
+
+% Links and references
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink]{cleveref}
+\definecolor{DarkBlue}{rgb}{0.00,0.00,0.50}
+\hypersetup{colorlinks=true,
+            linkcolor=blue,
+            filecolor=magenta,
+            urlcolor=cyan,
+            citecolor=DarkBlue,
+            pdftitle={Tsunami Monitoring System -- Workshop 4},
+            }
+
+% Bibliography: the template's numbered style (natbib numbers)
+\usepackage[numbers]{natbib}
+\usepackage[nottoc]{tocbibind}
+\renewcommand{\bibname}{References}
+
+% Appendices
+\usepackage[toc]{appendix}
+
+%% ----- Additions for this report -----
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,positioning}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\hypersetup{bookmarksdepth=1}
+\renewcommand{\arraystretch}{1.25}
+% Long file names and code words: allow looser lines and breaks in paths at _ and .
+\setlength{\emergencystretch}{3em}
+\expandafter\def\expandafter\UrlBreaks\expandafter{\UrlBreaks\do\_\do\.}
+
+\begin{document}
+
+    \captionsetup[figure]{margin=1.5cm,font=small,name={Figure},labelsep=colon}
+    \captionsetup[table]{margin=1.5cm,font=small,name={Table},labelsep=colon}
+
+    \frontmatter
+
+    % -------------------------------------------------------------------
+    % Title page
+    % -------------------------------------------------------------------
+    \begin{titlepage}
+        \begin{center}
+            \includegraphics[width=3cm]{figures/ud.png}\\[0.5cm]
+            {\LARGE Universidad Distrital Francisco Jos\'e de Caldas\\[0.5cm]
+            School of Engineering -- Computer Engineering Program}\\[2cm]
+
+            \linespread{1.2}\huge {
+                Tsunami Monitoring System\\[0.3cm]
+                \Large Workshop No.\ 4: Governance and Storytelling Dashboards
+            }
+            \linespread{1}~\\[2cm]
+
+            {\Large Team 8}\\[0.5cm]
+            {\large
+            \begin{tabular}{ll}
+                Lina Moreno & 20231020133 \\
+                Jaider \'Avila & 20231020200 \\
+                Gabriela Mart\'inez & 20231020205 \\
+            \end{tabular}}\\[1cm]
+
+            {\large \emph{Professor:} Eng.\ Carlos Andr\'es Sierra, M.Sc.}\\[1cm]
+
+            \large A report submitted for Workshop No.\ 4 of the course\\
+            \textit{Data Analysis Programming}, Semester 2026-II\\[0.3cm]
+            \small
+            Repository: \url{https://github.com/g8martinezsilva/tsunami-monitoring}\\[0.2cm]
+            Branch: \texttt{feat/workshop4-dashboards}
+            \vfill
+
+            \today
+        \end{center}
+    \end{titlepage}
+
+    % -------------------------------------------------------------------
+    % Declaration
+    % -------------------------------------------------------------------
+    \newpage
+    \thispagestyle{empty}
+    \chapter*{\Large Declaration}
+    We, Lina Moreno, Jaider \'Avila and Gabriela Mart\'inez, of the Computer Engineering Program, Universidad Distrital Francisco Jos\'e de Caldas, confirm that this is our own work and that figures, tables, equations, code snippets and illustrations in this report are original and have not been taken from any other person's work, except where the works of others have been explicitly acknowledged, quoted, and referenced. Data from external sources are cited with their licenses.
+    ~\\[1cm]
+    \begin{flushright}
+    Lina Moreno\\
+    Jaider \'Avila\\
+    Gabriela Mart\'inez
+
+    \today
+    \end{flushright}
+
+    % -------------------------------------------------------------------
+    % Abstract (executive summary)
+    % -------------------------------------------------------------------
+    \chapter*{Abstract}
+    \addcontentsline{toc}{chapter}{Abstract}
+    % TODO (Executive Summary): both dashboards, integration status, key visualization decisions.
+    \textit{To be written.}
+
+    % -------------------------------------------------------------------
+    % Contents, list of figures, list of tables, abbreviations
+    % -------------------------------------------------------------------
+    \setcounter{tocdepth}{0}
+    \tableofcontents
+    \setcounter{tocdepth}{1}
+    \listoffigures
+    \listoftables
+
+    \chapter*{List of Abbreviations}
+    \chaptermark{List of Abbreviations}
+    \begin{abbrv}
+        \item[CAP]      Common Alerting Protocol
+        \item[DAG]      Directed Acyclic Graph (Airflow workflow)
+        \item[EDA]      Exploratory Data Analysis
+        \item[FDSN]     International Federation of Digital Seismograph Networks
+        \item[HazEL]    NCEI Hazard Event Database (Global Historical Tsunami Database interface)
+        \item[IQR]      Interquartile Range
+        \item[NCEI]     NOAA National Centers for Environmental Information
+        \item[NOAA]     National Oceanic and Atmospheric Administration
+        \item[NTWC]     National Tsunami Warning Center (Palmer, Alaska)
+        \item[KPI]      Key Performance Indicator
+        \item[PTWC]     Pacific Tsunami Warning Center (Honolulu, Hawaii)
+        \item[USGS]     United States Geological Survey
+        \item[UTC]      Coordinated Universal Time
+    \end{abbrv}
+
+    % -------------------------------------------------------------------
+    % Main chapters
+    % -------------------------------------------------------------------
+    \mainmatter
+
+\chapter{Introduction}
+% TODO: Workshop 4 scope. Course: temporal and geographic analysis, historical-versus-current comparison,
+% hazard indicator and dashboard. Guide (2026-I edition): two Plotly Dash apps reading only Gold.
+% State once that the guide's sentiment components are replaced by tsunami equivalents (table).
+\textit{To be written.}
+
+\chapter{Integration Adjustments}
+% Guide: pipeline or Gold corrections made in this workshop, separate from the Workshop 3 improvements
+% (new governance KPIs, historical-versus-current metric, thresholds), and the end-to-end run.
+\section{Gold Layer Additions}
+% TODO
+\section{End-to-End Pipeline Run}
+% TODO: clean run Bronze -> Silver -> Gold, on one machine.
+
+\chapter{Governance Dashboard}
+% Guide: layout description, component list, KPI mapping and design rationale. localhost:8050.
+\section{Layout}
+% TODO
+\section{Components and KPI Mapping}
+% TODO: table (component, Gold topic/column, KPI, threshold).
+
+\chapter{Storytelling Dashboard}
+% Guide: layout, component list, user story mapping (US1--US6) and narrative rationale. localhost:8051.
+\section{Layout and Narrative}
+% TODO
+\section{Components and User Stories}
+% TODO: table (component, Gold metric, user story, replaced guide component).
+
+\chapter{Visualization Design Decisions}
+% Guide: chart types, colorblind-safe palette, layout choices, labels and source notes.
+\textit{To be written.}
+
+\chapter{Reproducibility Evidence}
+% Guide: screenshots of the full pipeline in Airflow and both dashboards in a browser.
+\textit{To be written.}
+
+\chapter{Challenges and Resolutions}
+\textit{To be written.}
+
+\chapter{Conclusions}
+% TODO: conclusions and what remains for the final project.
+\textit{To be written.}
+
+    % -------------------------------------------------------------------
+    % References
+    % -------------------------------------------------------------------
+\begin{thebibliography}{99}
+\small
+\raggedright
+\setlength{\bibsep}{2pt}
+\bibitem{hazel} National Geophysical Data Center / World Data Service. \emph{NCEI/WDS Global Historical Tsunami Database}. NOAA National Centers for Environmental Information. doi:10.7289/V5PN93H7. Accessed through the HazEL API, \url{https://www.ngdc.noaa.gov/hazel/view/swagger}, 8 November 2026.
+\bibitem{usgsfdsn} U.S.\ Geological Survey. \emph{API Documentation -- Earthquake Catalog}. \url{https://earthquake.usgs.gov/fdsnws/event/1/}. Accessed 8 November 2026.
+\bibitem{usgscredit} U.S.\ Geological Survey. \emph{Acknowledging or Crediting USGS}. \url{https://www.usgs.gov/information-policies-and-instructions/acknowledging-or-crediting-usgs}. Accessed 8 November 2026.
+\bibitem{usgsfeed} U.S.\ Geological Survey. \emph{Real-time Notifications, Feeds, and Web Services (GeoJSON summary feed)}. \url{https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php}. Accessed 7 and 9 November 2026.
+\bibitem{hazelforms} NOAA National Centers for Environmental Information. \emph{HazEL tsunami event search} and \emph{earthquake search} forms. \url{https://www.ngdc.noaa.gov/hazel/view/hazards/tsunami/event-search} and \url{https://www.ngdc.noaa.gov/hazel/view/hazards/earthquake/search}. Accessed 16 November 2026.
+\bibitem{tsunamigov} NOAA National Weather Service, Tsunami Warning Centers. \emph{Tsunami event feeds}. \url{https://www.tsunami.gov/}. Accessed 7 and 9 November 2026.
+\bibitem{marineregions}
+Flanders Marine Institute (2021).
+\emph{Global Oceans and Seas, version 1}.
+Marine Regions.
+\url{https://doi.org/10.14284/542}.
+Licensed under CC BY 4.0.
+Accessed 16 November 2026.
+
+\bibitem{taupo}
+Smithsonian Institution, Global Volcanism Program (2022).
+\emph{Report on Taupo (New Zealand),
+30 November--6 December 2022}.
+\url{https://volcano.si.edu/showreport.cfm?gvpvar=GVP.WVAR20221130-241070}.
+
+\bibitem{tracy}
+Shugar, D. H., et al.\ (2026).
+\emph{A 481 m-high landslide-tsunami in a
+cruise ship--frequented Alaska fjord}.
+\textit{Science}. doi:10.1126/science.aec3187.
+\url{https://doi.org/10.1126/science.aec3187}.
+Accessed 16 November 2026.
+\bibitem{workshop1} Team 8. \emph{Tsunami Monitoring System -- Workshop No.~1: Hazard Definition, Source Validation, and Data Contract}. Universidad Distrital Francisco Jos\'e de Caldas, 2026. \url{https://github.com/g8martinezsilva/tsunami-monitoring/tree/workshop-1}.
+\bibitem{airflow} The Apache Software Foundation. \emph{Apache Airflow 2.10 documentation}. \url{https://airflow.apache.org/docs/apache-airflow/2.10.4/}. Accessed 17 November 2026.
+\bibitem{compose} Docker Inc. \emph{Docker Compose documentation}. \url{https://docs.docker.com/compose/}. Accessed 17 November 2026.
+\bibitem{postgis} PostGIS Project Steering Committee. \emph{PostGIS documentation}. \url{https://postgis.net/documentation/}. Accessed 17 November 2026.
+\bibitem{pandas} The pandas development team. \emph{pandas documentation}. \url{https://pandas.pydata.org/docs/}. Accessed 17 November 2026.
+\bibitem{parquet} The Apache Software Foundation. \emph{Apache Parquet documentation}. \url{https://parquet.apache.org/docs/}. Accessed 17 November 2026.
+\bibitem{workshop2} Team 8. \emph{Tsunami Monitoring System -- Workshop No.~2: Technical Architecture, Historical Ingestion and Bronze/Silver Pipeline}. Universidad Distrital Francisco Jos\'e de Caldas, 2026. \url{https://github.com/g8martinezsilva/tsunami-monitoring/tree/workshop-2}.
+\bibitem{pyspark} The Apache Software Foundation. \emph{PySpark documentation}. \url{https://spark.apache.org/docs/latest/api/python/}. Accessed 17 November 2026.
+
+\bibitem{courseproject} Sierra, C. A. \emph{Course Project Description: Natural Hazard Monitoring Systems}. Data Analysis Programming, Semester 2026-II. Universidad Distrital Francisco Jos\'e de Caldas. Course handout.
+\bibitem{teamassignment} Sierra, C. A. \emph{Team Project Assignment: Natural Hazard Monitoring Systems}. Data Analysis Programming, Semester 2026-II. Universidad Distrital Francisco Jos\'e de Caldas. Course handout.
+\bibitem{goldguide} Sierra, C. A. \emph{Workshop No.~3: Silver-to-Gold Pipeline, Governance KPIs, and Storytelling Definition}. Data Analysis Programming, Semester 2026-I. Universidad Distrital Francisco Jos\'e de Caldas. Course handout.
+\bibitem{edaguide} Sierra, C. A. \emph{Data Engineering and Visualization: ETLs, EDAs, Data Curation, and Visual Storytelling}. Semester 2026-I. Universidad Distrital Francisco Jos\'e de Caldas. Course slides.
+\bibitem{curationnb} Sierra, C. A. \emph{Exploratory Data Analysis (EDA) \& Data Curation} and \emph{Data Visualization Gallery}. Data Analysis Programming, practical notebooks. Universidad Distrital Francisco Jos\'e de Caldas.
+\bibitem{scipy} The SciPy community. \emph{SciPy documentation: statistical functions}. \url{https://docs.scipy.org/doc/scipy/reference/stats.html}.
+\bibitem{seaborn} Waskom, M. \emph{seaborn: statistical data visualization}. \url{https://seaborn.pydata.org/}.
+\bibitem{spark353} The Apache Software Foundation. \emph{Apache Spark 3.5.3 Documentation}. \url{https://spark.apache.org/docs/3.5.3/}.
+\bibitem{postgresql} The PostgreSQL Global Development Group. \emph{PostgreSQL 16 Documentation: INSERT}. \url{https://www.postgresql.org/docs/16/sql-insert.html}.
+\bibitem{postgis-distance} PostGIS Project Steering Committee. \emph{PostGIS Reference: ST\_DWithin}. \url{https://postgis.net/docs/ST_DWithin.html}.
+\bibitem{workshop3} Team 8. \emph{Tsunami Monitoring System -- Workshop No.~3: Pipeline Improvements, Incremental Ingestion and Gold Layer}. Universidad Distrital Francisco Jos\'e de Caldas, 2026. \url{https://github.com/g8martinezsilva/tsunami-monitoring}.
+\bibitem{dash} Plotly. \emph{Dash Python User Guide}. \url{https://dash.plotly.com/}.
+\bibitem{dbc} Faculty AI. \emph{Dash Bootstrap Components documentation}. \url{https://dash-bootstrap-components.opensource.faculty.ai/}.
+\bibitem{plotly} Plotly. \emph{Plotly Python Graphing Library}. \url{https://plotly.com/python/}.
+\end{thebibliography}
+
+    % -------------------------------------------------------------------
+    % Appendices
+    % -------------------------------------------------------------------
+    \begin{appendices}
+
+\chapter{Running the Dashboards}
+% TODO: exact commands (Compose and local), ports 8050 and 8051.
+\textit{To be written.}
+
+    \end{appendices}
+
+\end{document}
