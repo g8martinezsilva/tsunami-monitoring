@@ -330,6 +330,73 @@ def quality_summary(pair):
                  [(*values, status_badge(status)) for status, *values in checks])
 
 
+def matrix_cell(rows, check):
+    topic, label, value, detail, bound, unit = check
+    evaluated = rows.loc[rows[value].notna()]
+    if topic == "outlier_rate":
+        evaluated = evaluated.loc[evaluated["outlier_values"].gt(1).fillna(False)]
+    statuses = set(evaluated["status"].dropna())
+    status = next((state for state in ("warning", "review", "ok", "expected") if state in statuses), "n/a")
+
+    relevant = rows if status == "n/a" else evaluated.loc[evaluated["status"].eq(status)]
+    indicators = []
+    for row in relevant.sort_values(value, ascending=bound == "≥").head(3).itertuples(index=False):
+        context = getattr(row, detail) if detail else None
+        name = f"{label} · {context}" if pd.notna(context) else label
+        parts = [f"{name}: {theme.fmt(getattr(row, value), 2, unit)}"]
+        if pd.notna(row.threshold):
+            parts.append(f"Target {bound} {row.threshold:g}{unit}")
+        if topic == "schema_compliance" and pd.notna(row.files_compliant) and pd.notna(row.files_checked):
+            parts.append(f"Compliant files: {theme.fmt(row.files_compliant)} / {theme.fmt(row.files_checked)}")
+        if topic == "outlier_rate" and pd.notna(row.outlier_values):
+            parts.append(f"Evaluated values: {theme.fmt(row.outlier_values)}")
+            if row.outlier_values <= 1:
+                parts.append("Insufficient data")
+        indicators.append(" · ".join(parts))
+    if len(relevant) > 3:
+        indicators.append(f"{len(relevant) - 3} more indicators")
+    return status, "<br>".join(indicators) if indicators else "No indicator in this Gold publication."
+
+
+def source_quality_matrix(pair):
+    dimensions = {
+        "null_rate": "Completeness",
+        "schema_compliance": "Schema Compliance",
+        "outlier_rate": "Statistical Quality",
+        "pipeline_state": "Freshness",
+    }
+    colors = {
+        "ok": QUALITY_COLORS["ok"], "warning": QUALITY_COLORS["warning"], "review": "#F4D03F",
+        "expected": QUALITY_COLORS["expected"], "n/a": "#E7EAEE",
+    }
+    codes = {status: index for index, status in enumerate(colors)}
+    sources = ("usgs_fdsn", "usgs_realtime", "noaa_hazel", "ntwc", "ptwc")
+    checks = {check[0]: check for check in QUALITY_CHECKS}
+    topics = {topic: pair.topic(topic) for topic in dimensions}
+    cells = [[matrix_cell(rows.loc[rows["source"].eq(source)], checks[topic])
+              for topic, rows in topics.items()] for source in sources]
+
+    figure = go.Figure(go.Heatmap(
+        x=list(dimensions.values()), y=[source_name(source) for source in sources],
+        z=[[codes[status] for status, _ in row] for row in cells],
+        text=[[STATUS_LABELS[status] for status, _ in row] for row in cells],
+        customdata=[[detail for _, detail in row] for row in cells],
+        texttemplate="%{text}",
+        hovertemplate="<b>%{y}</b><br>%{x} · <b>%{text}</b><br>%{customdata}<extra></extra>",
+        zmin=-0.5, zmax=len(colors) - 0.5, xgap=3, ygap=3,
+        colorscale=[(stop / len(colors), color)
+                    for index, color in enumerate(colors.values()) for stop in (index, index + 1)],
+        colorbar={"orientation": "h", "tickmode": "array", "tickvals": list(codes.values()),
+                  "ticktext": [STATUS_LABELS[status] for status in colors], "outlinewidth": 0,
+                  "x": 0.5, "xanchor": "center", "y": -0.07, "yanchor": "top", "len": 0.9, "thickness": 10},
+    ))
+    theme.style(figure, "Source Quality and Health Matrix", legend=False, height=340)
+    figure.update_xaxes(side="top", tickmode="array", tickvals=list(dimensions.values()),
+                        ticktext=[label.replace(" ", "<br>") for label in dimensions.values()], automargin=True)
+    figure.update_yaxes(autorange="reversed", automargin=True)
+    return figure.update_layout(margin={"t": 40, "b": 60})
+
+
 def utc_time(value):
     return value.strftime("%Y-%m-%d %H:%M:%S") if pd.notna(value) else "—"
 
@@ -455,31 +522,37 @@ def layout():
                                               className="d-block text-muted mt-1"),
                                ], className="border-top mt-2 pt-2")), lg=6, xs=12),
         ], className="g-3 mb-3"),
-        dbc.Row(dbc.Col(chart_card(
-            "distribution-box-plot", distribution_box_plot(pair, "", "magnitude"), "outlier_rate",
-            "Outliers represent statistically unusual observations and may correspond to real natural events.",
-            controls=dbc.Row([
-                dbc.Col([
-                    html.Label("Variable", htmlFor="box-variable", className="fw-bold mb-1"),
-                    dcc.Dropdown(id="box-variable", value="magnitude", clearable=False,
-                                 options=box_variable_options("")),
-                ], xs=12, sm=6, lg=4),
-                dbc.Col([
-                    html.Label("View", htmlFor="box-view", className="fw-bold mb-1"),
-                    dcc.Dropdown(id="box-view", value="full", clearable=False,
-                                 options=[{"label": "Full Distribution", "value": "full"},
-                                          {"label": "Focus on Box", "value": "focus"}]),
-                ], xs=12, sm=6, lg=4),
-            ], className="g-2 mb-2"),
-        )), className="g-3 mb-3"),
         dbc.Row([
+            dbc.Col(chart_card(
+                "distribution-box-plot", distribution_box_plot(pair, "", "magnitude"), "outlier_rate",
+                "Outliers represent statistically unusual observations and may correspond to real natural events.",
+                controls=dbc.Row([
+                    dbc.Col([
+                        html.Label("Variable", htmlFor="box-variable", className="fw-bold mb-1"),
+                        dcc.Dropdown(id="box-variable", value="magnitude", clearable=False,
+                                     options=box_variable_options("")),
+                    ], xs=12, sm=6, lg=4),
+                    dbc.Col([
+                        html.Label("View", htmlFor="box-view", className="fw-bold mb-1"),
+                        dcc.Dropdown(id="box-view", value="full", clearable=False,
+                                     options=[{"label": "Full Distribution", "value": "full"},
+                                              {"label": "Focus on Box", "value": "focus"}]),
+                    ], xs=12, sm=6, lg=4),
+                ], className="g-2 mb-2"),
+            ), xl=8, xs=12),
             dbc.Col(chart_card("outlier-rates", outliers, "outlier_rate",
                                "The IQR rule identifies unusual values, including real natural events."),
-                    xl=4, lg=6, xs=12),
+                    xl=4, xs=12),
+        ], className="g-3 mb-3"),
+        dbc.Row([
             dbc.Col(panel("Data Quality Summary", html.Div(id="quality-summary", children=quality_summary(pair),
-                                                           className="quality-scroll")), xl=5, lg=6, xs=12),
-            dbc.Col(html.Section(pipeline_health(pair), id="pipeline-health", className="h-100"), xl=3, xs=12),
+                                                           className="quality-scroll")), lg=6, xs=12),
+            dbc.Col(html.Section(pipeline_health(pair), id="pipeline-health", className="h-100"), lg=6, xs=12),
         ], className="g-3 mb-4"),
+        dbc.Row(dbc.Col(chart_card(
+            "source-quality-matrix", source_quality_matrix(pair), "quality and pipeline indicators",
+            "The matrix summarizes Gold indicators using categorical statuses for each source and dimension.",
+        ), xs=12), className="mb-4"),
     ], fluid=True, className="governance px-3 px-lg-4"), className="bg-light min-vh-100")
 
 
@@ -508,6 +581,14 @@ app.index_string = app.index_string.replace("</head>", """<style>
                     border-radius: .25rem; padding: .15rem .4rem; background: #f3f5f7;
                     font-weight: 600; font-size: .75rem; white-space: nowrap; }
     #pipeline-health .table { font-size: .8rem; }
+    #source-quality-matrix { overflow-x: auto; }
+    #source-quality-matrix .dash-graph { min-width: 38rem !important; }
+    @media (max-width: 575.98px) {
+        .quality-scroll .table { min-width: 32rem; }
+        #outlier-rates { overflow-x: auto; }
+        #outlier-rates .dash-graph { min-width: 20rem !important; }
+        #outlier-rates .ytick text { font-size: 10px !important; }
+    }
 </style></head>""")
 app.layout = layout
 
@@ -516,7 +597,7 @@ app.layout = layout
     Output("missing-values", "children"), Output("ingestion-trend", "children"), Output("outlier-rates", "children"),
     Output("gold-label", "children"), Output("kpis", "children"), Output("source-filter", "options"),
     Output("quality-summary", "children"), Output("pipeline-health", "children"), Output("gold-stamp", "data"),
-    Output("unique-observations-by-source", "children"),
+    Output("unique-observations-by-source", "children"), Output("source-quality-matrix", "children"),
     Input("refresh", "n_clicks"), Input("source-filter", "value"), State("gold-stamp", "data"),
     prevent_initial_call=True,
 )
@@ -529,9 +610,9 @@ def update_dashboard(_clicks, source, shown_stamp):
     source = source if any(option["value"] == source for option in options) else ""
     charts = tuple(graph(figure) for figure in source_charts(pair, source))
     if not changed:
-        return charts + (no_update,) * 7
+        return charts + (no_update,) * 8
     return (*charts, pair.label, kpi_cards(pair), options, quality_summary(pair), pipeline_health(pair), pair.stamp,
-            unique_observations_table(pair))
+            unique_observations_table(pair), graph(source_quality_matrix(pair)))
 
 
 @app.callback(
