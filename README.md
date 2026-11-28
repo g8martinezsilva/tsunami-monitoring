@@ -8,7 +8,9 @@ A tsunami is a series of ocean waves that can be caused by a large undersea eart
 
 This is a monitoring and correlation tool. It does not predict tsunamis or replace official warning systems.
 
-**Scope:** The monitoring area uses three Marine Regions Pacific maritime regions, including waters near Alaska and Hawaii, and a project-defined 100 km influence area. Historical samples cover NOAA HazEL tsunamis from 2010–2025 and USGS FDSN earthquakes from 2010–2011 with magnitude ≥ 6. The source queries used NOAA HazEL regions 80–89 and a USGS rectangle spanning latitude −60..65 and longitude 100..300; these query filters are distinct from the geographic classification in the notebook.
+**Scope.** The monitoring area uses three Marine Regions Pacific maritime regions, including waters near Alaska and Hawaii, and a project-defined 100 km influence area. Workshop 1 profiles saved samples of NOAA HazEL tsunamis from 2010–2025 and USGS FDSN earthquakes of magnitude ≥ 6 from 2010–2011. The default historical ingestion covers the full 2010–2025 period for both catalogs under their configured filters.
+
+HazEL queries use region codes 80–89. FDSN queries use magnitude ≥ 6 and a rectangle spanning latitude −60° to 65° and longitude 100° to 300°. The USGS real-time download uses the worldwide magnitude ≥ 4.5 feed for the past 30 days. The profiling notebook uses the Marine Regions boundaries and the 100 km margin for geographic classification.
 
 ## Team
 
@@ -82,7 +84,7 @@ The write modes call the same Bronze, Silver, loader and matching functions as A
 
 The CLI uses `RAW_DIR` and `SILVER_DIR` for its files. Exit code `0` means success, `1` means a run or connection failed, and `2` indicates invalid arguments. An incremental run can load responses from successful sources and still return `1` to report a failed source. For an existing Workshop 2 volume, check the [Workshop 3 migration instructions](workshop_3/README.md#upgrade-an-existing-workshop-2-database) before running a write mode.
 
-## Pipeline (Workshop 2): Docker, Airflow and the medallion layers
+## Pipeline: Docker, Airflow and the medallion layers
 
 The stack runs PostgreSQL/PostGIS (project database, `localhost:5433`) and Apache Airflow 2.10 (UI at http://localhost:8080) with Docker Compose. With `.env` created (see Setup):
 
@@ -91,11 +93,18 @@ docker compose up -d          # PostGIS, Airflow metadata DB, webserver, schedul
 docker compose ps             # all services running
 ```
 
-Log in to Airflow with `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` from `.env`, then:
+| DAG | Schedule | Role |
+|---|---|---|
+| [`bronze_ingestion`](airflow/dags/bronze_ingestion_dag.py) | Manual | Downloads historical NOAA HazEL and USGS FDSN records and captures the USGS real-time, NTWC and PTWC feeds. |
+| [`incremental_ingestion`](airflow/dags/incremental_ingestion_dag.py) | Every 10 minutes | Polls the three feeds for new or revised observations and publishes Bronze batches when there are changes. |
+| [`silver_processing`](airflow/dags/silver_processing_dag.py) | Every 10 minutes | Watches for Bronze arrival markers, writes Silver Parquet, loads PostGIS and matches events. |
+| [`usgs_fdsn_reconciliation`](airflow/dags/incremental_ingestion_dag.py) | Daily at 00:00 UTC | Queries the FDSN catalog for updates using its committed watermark and overlap window. |
+| [`gold_processing`](airflow/dags/gold_processing_dag.py) | Daily at 06:00 UTC | Consolidates Silver and publishes the paired Governance and Storytelling Parquet datasets. |
 
-1. Unpause `silver_processing`.
-2. Trigger `bronze_ingestion` (optionally with other `start` / `end` dates). It downloads the four sources into `datalake_bronze/`, validates the files and writes a run manifest.
-3. Within 10 minutes `silver_processing` detects the new Bronze run with its FileSensor, writes `topic_YYYYMMDD_HHMMSS.parquet` files to `datalake_silver/` and loads them into PostGIS.
+Airflow creates the DAGs paused on a fresh stack. Log in with `AIRFLOW_ADMIN_USER` / `AIRFLOW_ADMIN_PASSWORD` from `.env` and enable the pipeline in the DAGs view.
+
+1. Unpause `silver_processing`. For the initial historical load, unpause and trigger `bronze_ingestion` manually. Its default bounds are `2010-01-01` and `2025-12-31`. Wait for Silver to load the batch and commit the FDSN watermark.
+2. Unpause `incremental_ingestion`, `usgs_fdsn_reconciliation` and `gold_processing`. Keep the Compose stack running and all four scheduled DAGs unpaused. Silver consumes arrival markers from the ingestion DAGs, and Gold publishes on its own schedule.
 
 The database schema (`sql/`) is created automatically the first time the database volume starts. Check the load with:
 
@@ -194,4 +203,4 @@ The output goes to `datalake_gold/` as a pair of Parquet directories (`governanc
 
 - [Dashboard implementation report (PDF)](workshop_4/report/Team8_Workshop4_Tsunami.pdf)
 - [Visual evidence](workshop_4/evidence/)
-- [Workshop 4 checklist and run instructions](workshop_4/README.md)
+- [Workshop 4 deliverables and run instructions](workshop_4/README.md)
