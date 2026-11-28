@@ -189,3 +189,9 @@ docker exec tsunami-airflow-scheduler airflow dags trigger gold_processing
 ```
 
 The output goes to `datalake_gold/` as a pair of Parquet directories (`governance_*` and `storytelling_*`). Open the exploratory notebook or [Gold preview notebook](notebooks/04_gold_preview.ipynb) in VS Code or Jupyter, select the project Python kernel and run all cells from the repository root or `notebooks/`.
+
+## Workshop 4 deliverables
+
+- [Dashboard implementation report (PDF)](workshop_4/report/Team8_Workshop4_Tsunami.pdf)
+- [Visual evidence](workshop_4/evidence/)
+- [Workshop 4 checklist and run instructions](workshop_4/README.md)

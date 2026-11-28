@@ -58,6 +58,8 @@
 \usepackage{caption}
 \usepackage{multirow}
 \usepackage{rotating}
+\usepackage{pdflscape}
+\usepackage{placeins}
 \usepackage{makecell}
 \usepackage{booktabs}
 
@@ -88,6 +90,7 @@
 
 %% ----- Additions for this report -----
 \usepackage{tabularx}
+\usepackage{longtable}
 \usepackage{float}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,calc,positioning}
@@ -200,7 +203,7 @@ To feed them, Gold gained duplicate, schema-compliance and outlier rates with bo
     \mainmatter
 
 \chapter{Introduction}
-Workshop~4 of the 2026-II course covers temporal and geographic analysis, the historical-versus-current comparison, the hazard indicator and the monitoring dashboard \cite{courseproject,teamassignment}. The Workshop~4 guide available to the team belongs to the 2026-I edition: it asks for two Plotly Dash applications, one for governance and one for storytelling, that read only the Gold layer, and it describes the storytelling components in terms of sentiment analysis \cite{dash}. The team follows the structure of that guide and fills it with the course scope for this hazard. Each sentiment component is replaced by its tsunami equivalent (\cref{tab:story-components}): the sentiment distribution becomes the relevance-level cards, the sentiment trend becomes the comparison of the last 30 days with the 2010--2025 rate, the keyword chart becomes the regions with the most strong earthquakes, and the volume chart becomes the earthquakes per day.
+Workshop~4 of the 2026-II course covers temporal and geographic analysis, the historical-versus-current comparison, the hazard indicator and the monitoring dashboard \cite{courseproject,teamassignment}. The Workshop~4 guide available to the team belongs to the 2026-I edition: it asks for two Plotly Dash applications, one for governance and one for storytelling, that read only the Gold layer, and it describes the storytelling components in terms of sentiment analysis \cite{dashboardguide}. The team follows the structure of that guide and fills it with the course scope for this hazard. Each sentiment component is replaced by its tsunami equivalent (\cref{tab:story-components}): the sentiment distribution becomes the relevance-level cards, the sentiment trend becomes the comparison of the last 30 days with the 2010--2025 rate, the keyword chart becomes the regions with the most strong earthquakes, and the volume chart becomes the earthquakes per day.
 
 The functional user is the monitoring analyst of a coastal emergency-management office described in Workshop~1, who knows magnitude and depth but is not a seismologist \cite{workshop1}. The governance dashboard is written for the data team and keeps the technical terms; the storytelling dashboard avoids them. Both applications read the newest complete Gold pair, and the report uses the committed publication \texttt{20261128\_040949} throughout, so that every figure and number comes from the same run (\cref{ch:evidence}).
 
@@ -282,6 +285,7 @@ The Governance application runs on port 8050 and reads the Governance Parquet fr
 \label{fig:gov-dashboard}
 \end{figure}
 
+\FloatBarrier
 \section{Components and KPI Mapping}
 \Cref{tab:gov-components} relates each component to the Gold inputs used by the application. The per-field and operational targets are published alongside their indicators in \path{threshold} and \path{status}.
 
@@ -310,6 +314,7 @@ Source Quality and Health Matrix & \path{status} from \path{null_rate}, \path{sc
 \label{tab:gov-components}
 \end{table}
 
+\FloatBarrier
 \section{Data Completeness and Volume}
 Gold counted 2,653 processed Silver rows and 2,641 distinct source observations. The 12 repeated FDSN rows give an overall duplicate rate of 0.45\%. On 27 November, FDSN contributed 1,939 processed rows and 1,927 first captures. Its remaining five observations were first captured on 26 November. The volume chart uses a logarithmic count axis and markers for sources with a single capture day. All 2,641 current rows and all 11 Silver files passed the published schema checks.
 
@@ -337,6 +342,7 @@ Total & 2,653 & 2,641 & 0.34\% (9) & 1.21\% (32) \\
 \label{tab:gov-completeness}
 \end{table}
 
+\FloatBarrier
 \section{Statistical Quality}
 The historical EDA notebook \path{notebooks/05_data_curation.ipynb} illustrates why quartiles are useful for these skewed data. USGS depth had a mean of 88.57 km and a median of 26.00 km. NOAA maximum water height had a mean of 6.42 m and a median of 0.20 m. The historical depth analysis flagged 99 observations with a Z-score and 297 with IQR. The difference illustrates how the result depends on the rule and how a long tail can influence methods based on the mean and standard deviation. The notebook retained plausible extremes and explored transformations on separate analytical copies. The dashboard uses the current Gold observations in their original units. \cite{curationnb,edaguide}
 
@@ -368,12 +374,16 @@ USGS FDSN & Earthquake depth & 297 & 1,932 & 15.37\% \\
 \label{tab:gov-outlier-review}
 \end{table}
 
+\FloatBarrier
 \section{Pipeline Health and Quality Matrix}
+\begingroup
+\setlength{\intextsep}{6pt}
 Data Quality Summary lists the field and operational indicators, their targets, and their statuses, with warnings and review items first. Pipeline Health groups the operational evidence by source and workflow. Its freshness panel shows the last successful load, the watermark and its age at publication. Over the seven-day reporting window, FDSN had four successful loads and the other sources had one each, with zero recorded load failures. \Cref{fig:gov-health} shows the publication's freshness panel and the start of its Airflow run summary.
 
 \begin{figure}[!htbp]
 \centering
-\includegraphics[width=0.94\textwidth]{../evidence/governance/09_pipeline_health.png}
+\includegraphics[width=0.81\textwidth]{../evidence/governance/09_pipeline_health.png}
+\captionsetup{skip=6pt}
 \caption[Pipeline Health evidence]{Pipeline Health for the Governance publication. The UTC timestamps and load counts are source-level measures. The Airflow table reports DAG runs.}
 \label{fig:gov-health}
 \end{figure}
@@ -384,26 +394,32 @@ Matching coverage is the share of eligible observations with an accepted link. O
 
 The matrix maps Completeness, Schema Compliance, Statistical Quality and Freshness to the corresponding Gold topics in \cref{tab:gov-components}. Within each source and dimension, \emph{Warning} takes priority over \emph{Review}, followed by \emph{OK}. \emph{Warning} identifies a breached target or a schema file check that failed. \emph{Review} highlights an elevated outlier rate, and \emph{OK} indicates that the evaluated indicators meet their targets. \emph{Expected} applies when all evaluated fields have structural gaps classified as expected. \emph{N/A} denotes missing, inapplicable or insufficient evidence. Each cell reports a category for its own dimension.
 
+\FloatBarrier
+\endgroup
+\begin{landscape}
+\setlength{\intextsep}{6pt}
 \Cref{fig:gov-matrix} shows schema compliance as OK for all sources. NOAA's completeness warning comes from \path{warning_status_id}, and statistical quality calls for review for NOAA and FDSN. Real-time freshness is in warning at 5.21 h against a 1 h target. FDSN is OK at 10.79 h against 48 h. Freshness is N/A for NOAA, NTWC and PTWC. NOAA has no watermark in the publication, and the bulletin sources have observed watermark ages without configured targets.
 
-\begin{sidewaysfigure}
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textheight]{../evidence/governance/10_quality_heatmap.png}
+\includegraphics[width=0.92\linewidth]{../evidence/governance/10_quality_heatmap.png}
 \caption[Categorical source quality and health matrix]{Source Quality and Health Matrix. Cell labels identify the status and the legend gives the corresponding colour.}
 \label{fig:gov-matrix}
-\end{sidewaysfigure}
+\end{figure}
 
+\FloatBarrier
 \section{Interactivity}
 Chart Source filters the diagnostic charts while keeping the KPI cards, source overview, health tables and source matrix at publication scope. The box-plot variable menu offers magnitude and depth for USGS and maximum water height and runup count for NOAA. It selects the first applicable variable when the previous selection becomes unavailable. NTWC and PTWC receive an explicit inapplicability message for these variables. Hover details expose the underlying counts, units, thresholds and distribution statistics. Refresh Data loads the latest complete Gold pair when its publication changes.
 
 The real-time feed filter illustrates a measured absence of missing values in the evaluated fields. The box-plot and matrix messages separately identify unavailable statistics and insufficient samples. The remaining screenshots are available as \href{https://github.com/g8martinezsilva/tsunami-monitoring/tree/952dd212e03c214906d968322b04abf6e643426b/workshop_4/evidence/governance}{complementary Governance evidence on GitHub}.
+\end{landscape}
 
 \chapter{Storytelling Dashboard}
 \label{ch:storytelling-dashboard}
 The storytelling dashboard (\path{dashboard/storytelling_app.py}, \texttt{localhost:8051}) is designed for the functional user of Workshop~1, a monitoring analyst in a coastal emergency-management office who knows magnitude and depth but is not a seismologist \cite{workshop1}. It reads only the storytelling Gold dataset. It is a monitoring aid: it neither predicts tsunamis nor replaces the official warning centers.
 
 \section{Layout and Narrative}
-The page uses the width of a 1080p screen without horizontal scrolling; the historical context sits in a lower row reached by scrolling down. It is read from left to right and from top to bottom, and each step answers one question of the analyst (\cref{tab:story-flow,fig:story-sketch}).
+The page uses the width of a 1080p screen without horizontal scrolling; the historical context sits in a lower row reached by scrolling down. It is read from left to right and from top to bottom, and each step answers one question of the analyst (\cref{tab:story-flow,fig:story-dashboard}).
 
 \begin{table}[!htbp]
 \centering
@@ -422,15 +438,16 @@ Step & Question & Elements, in reading order \\
 \label{tab:story-flow}
 \end{table}
 
-\begin{sidewaysfigure}
+The bulletin table lists earthquakes with a linked bulletin first, then orders them by level and magnitude, seven rows per page, so that an official assessment is on the first page. The bulletin table can also be sorted by any column. The time filter sits above the elements it controls: the level cards, the map, the bulletin table and the first sentence of the main message. Under the map, a bar chart of earthquakes per day over the last 30 days, with a line for magnitude 6 or higher, shows whether activity is rising or falling before the analyst compares the month with the historical rate. The lower row keeps fixed periods, which its titles and subtitles state. Both time windows end at the publication time of the Gold files shown in the header, not at the clock of the viewer, so an old data update cannot be mistaken for a quiet day.
+
+\begin{figure}[p]
 \centering
-\includegraphics[width=\textheight]{figures/storytelling_sketch.png}
-\caption[Design sketch of the storytelling dashboard]{Design sketch of the storytelling dashboard, followed by the implementation. Numbers 1--4 mark the reading order. All shapes and bracketed values are placeholders, not results; \cref{ch:evidence} shows the application with real Gold data.}
-\label{fig:story-sketch}
-\end{sidewaysfigure}
+\includegraphics[width=\textwidth,height=0.89\textheight,keepaspectratio]{../evidence/storytelling/01_full_dashboard.png}
+\caption[Complete storytelling dashboard]{Complete storytelling dashboard with Gold publication \texttt{20261128\_040949} and the 7-day window.}
+\label{fig:story-dashboard}
+\end{figure}
 
-The bulletin table lists earthquakes with a linked bulletin first, then orders them by level and magnitude, seven rows per page, so that an official assessment is on the first page. The bulletin table can also be sorted by any column. The time filter sits above the elements it controls: the level cards, the map, the bulletin table and the first sentence of the main message. Under the map, a bar chart of earthquakes per day over the last 30 days, with a line for magnitude 6 or higher, adds the time series that the sketch did not include; it shows whether activity is rising or falling before the analyst compares the month with the historical rate. The lower row keeps fixed periods, which its titles and subtitles state. Both time windows end at the publication time of the Gold files shown in the header, not at the clock of the viewer, so an old data update cannot be mistaken for a quiet day.
-
+\FloatBarrier
 \section{Main Message}
 The card at the top gives the conclusion before the evidence, in three sentences. Bracketed values are filled from Gold:
 
@@ -448,9 +465,12 @@ The following rules keep the text accurate:
 \section{Components and User Stories}
 \Cref{tab:story-components} maps each component to its Gold rows, its user story and the sentiment component of the course guide that it replaces. Titles are written as plain questions.
 
-\begin{table}[!htbp]
+\begin{table}[!ht]
 \centering
 \footnotesize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.03}
+\captionsetup{skip=5pt}
 \begin{tabularx}{\textwidth}{@{}YL{3.9cm}L{1.1cm}L{2.5cm}@{}}
 \toprule
 Title on screen (chart type) & Gold metric and columns & Story & Guide component replaced \\
@@ -472,8 +492,9 @@ Level cards: \emph{Low, Moderate, High, Official alert, Not rated} & \path{recen
 
 US5 is covered here only by the data timestamp in the header. The last successful run and the watermark age of every source (US5), and the rejected records and quality indicators (US6), are shown in the health panel of the governance dashboard.
 
+\FloatBarrier
 \section{Reading Limits Shown to the Analyst}
-\begin{itemize}
+\begin{itemize}[itemsep=1pt,topsep=3pt,parsep=0pt]
 \item \textbf{Relevance is not prediction.} The level is computed from magnitude, depth and nearby earlier tsunamis. In the Workshop~3 validation on the 2010--2025 catalog, 89.57\% of 163 tsunami-linked earthquakes were rated MODERATE or higher, so some earthquakes with a linked tsunami were rated LOW \cite{workshop3}.
 \item \textbf{Not rated.} Only earthquakes with $M\geq6$ receive a level. Smaller ones appear in grey as \emph{Not rated}, which does not mean safe. Gold currently applies OFFICIAL ALERT only to rated earthquakes; a bulletin linked to a smaller one appears in the bulletin column.
 \item \textbf{No linked bulletin.} Gold keeps only the latest accepted link of each earthquake, so ``None linked'' does not show that no warning exists. The table tells the analyst to check \url{https://www.tsunami.gov/}.
@@ -505,12 +526,45 @@ Quality and health by source & Categorical heatmap & A fixed source-by-dimension
 \label{tab:chart-types}
 \end{table}
 
+\FloatBarrier
+\begingroup
+\footnotesize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\LTpre}{4pt}
+\setlength{\LTpost}{4pt}
+\begin{longtable}{@{}L{3.1cm}L{2.9cm}L{\dimexpr\textwidth-6cm-4\tabcolsep\relax}@{}}
+\caption{Chart selection for Storytelling.}\label{tab:story-chart-types}\\
+\toprule
+Information & Form & Reason \\
+\midrule
+\endfirsthead
+\multicolumn{3}{@{}l}{Table \thetable\ continued}\\
+\toprule
+Information & Form & Reason \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Tsunami relevance levels & Labelled count cards & Counts, including zeros, let the analyst scan the selected time window. \\
+Recent earthquake locations & Pacific-centred map & Centring at $180^\circ$ keeps the basin continuous. Size shows magnitude and colour shows relevance. \\
+Earthquakes and official bulletins & Sortable table & The default order puts linked assessments first, on the same row as the earthquake. \\
+Daily earthquakes & Bars with an overlaid line & Bars show daily totals and the line shows the strong-earthquake subset on the same axis. \\
+Recent and historical activity & Paired dot plot & The gap between the observed and expected counts is visible for each region. \\
+Regions with the most strong earthquakes & Ranked horizontal bars & A common axis supports count comparisons and leaves room for region labels. \\
+Magnitudes by source & Histograms with a shared magnitude axis & Separate count axes keep each distribution visible. Titles identify the sources' coverage and magnitude cutoffs. \\
+Historical tsunami reports & Line with annual markers & The line shows changes in counts and the markers identify the reported years. \\
+\end{longtable}
+\endgroup
+
+\FloatBarrier
 \section{Colour}
 Source colours use the Okabe--Ito palette \cite{okabeito,wong2011}. Governance uses source colours for volume and distributions, and status colours for field rates and the matrix (\cref{tab:palette}). Hatching marks structural gaps in the missing-value chart. Text labels identify statuses in the matrix and quality badges.
 
 \begin{table}[!htbp]
 \centering
 \small
+\renewcommand{\arraystretch}{1.12}
+\captionsetup{skip=6pt}
 \begin{tabularx}{\textwidth}{@{}L{2.6cm}Y@{}}
 \toprule
 Group & Colour assignment \\
@@ -525,11 +579,16 @@ Governance badges & The shared theme uses yellow (\texttt{\#F0E442}) for Warning
 \label{tab:palette}
 \end{table}
 
+\FloatBarrier
 \section{Layout}
 The responsive layout in \cref{fig:gov-dashboard} puts the summary cards first and groups related charts for comparison. Cards stack on narrower screens, and the detailed tables scroll within their panels.
 
+In Storytelling, the numbered panels in \cref{fig:story-dashboard} guide the analyst from the recent overview and bulletin evidence to the historical context. The recent map and bulletin table sit side by side on wide screens and stack on narrower screens.
+
 \section{Labels and Context}
 Chart titles identify the measure, axes show the units, and source notes identify the underlying Gold indicators. Hover details provide counts and targets for individual marks.
+
+Storytelling uses questions as titles and labels each time window and its coverage. Map hover labels show event time, magnitude, depth and relevance.
 
 \chapter{Reproducibility Evidence}
 \label{ch:evidence}
@@ -541,31 +600,22 @@ Every number and figure in this report comes from the Gold publication \texttt{2
 \section{Dashboards in the Browser}
 \Cref{fig:gov-dashboard} shows the governance dashboard at \texttt{localhost:8050} and \cref{fig:story-dashboard} the storytelling dashboard at \texttt{localhost:8051}, both with the publication time in the header. With the 7-day window, the storytelling page reports 63 earthquakes of magnitude 4.5 or higher in the Pacific area, two of them rated LOW and 61 not rated, none with a linked bulletin, and 12 strong earthquakes in the last 30 days against about 9.9 expected.
 
-\IfFileExists{../evidence/storytelling/01_full_dashboard.png}{%
-\begin{figure}[p]
-\centering
-\includegraphics[width=\textwidth,height=0.89\textheight,keepaspectratio]{../evidence/storytelling/01_full_dashboard.png}
-\caption[Complete storytelling dashboard]{Complete storytelling dashboard with Gold publication \texttt{20261128\_040949} and the 7-day window.}
-\label{fig:story-dashboard}
-\end{figure}}{%
-\begin{figure}[htbp]
-\centering
-\fbox{\parbox{0.8\textwidth}{\centering\vspace{2em}Screenshot pending: \path{workshop_4/evidence/storytelling/01_full_dashboard.png}\vspace{2em}}}
-\caption[Complete storytelling dashboard]{Complete storytelling dashboard.}
-\label{fig:story-dashboard}
-\end{figure}}
+\section{Automated Checks}
+The Spark tests in the Airflow image (20 tests) cover the Workshop~3 Gold layer and every Workshop~4 addition: duplicate, schema and outlier rates, box-plot statistics, daily volume, thresholds and statuses, the historical-versus-current comparison and its Poisson probability. The dashboard tests in the project environment (15 tests) cover the selection of the newest complete Gold pair, older pairs without the newer columns, the reserved palette, the time windows, the wording rules of the main message, the order of the bulletin table, and an explanatory message instead of an error when a chart has no data. Finally, the repository was cloned into an empty folder on 28 November 2026, the dashboard image was built without cache, and both applications were started with only the commands of the README; each served its full layout with the publication \texttt{20261128\_040949} and no local data.
 
-\subsection{End-to-End Dashboard Refresh Validation}
+\begin{landscape}
+\section{End-to-End Dashboard Refresh Validation}
 With both dashboards running, the team executed \path{incremental_ingestion}, \path{silver_processing} and \path{gold_processing} in sequence, then selected \emph{Refresh Data} in each application. Both headers displayed the new Gold publication of 28 November 2026 at 14:49 UTC, and the indicators and visualizations updated in the same running sessions.
 
 Governance's unique observation count rose from 2,641 to 2,652. Storytelling's seven-day earthquake count rose from 63 to 67. \Cref{fig:governance-refresh,fig:storytelling-refresh} show the refreshed dashboards. This follow-up test validates the refresh workflow. Gold publication \texttt{20261128\_040949} remains the reference for the report's analytical results.
 
-\begin{sidewaysfigure}
+\begin{figure}[!htbp]
 \centering
-\includegraphics[width=\textheight]{../evidence/refresh/01_governance_refresh.png}
+\includegraphics[width=0.86\linewidth]{../evidence/refresh/01_governance_refresh.png}
 \caption[Governance after Refresh Data]{Governance after Refresh Data, showing the new publication time, updated KPI cards and processed volume by capture day.}
 \label{fig:governance-refresh}
-\end{sidewaysfigure}
+\end{figure}
+\end{landscape}
 
 \begin{sidewaysfigure}
 \centering
@@ -573,10 +623,6 @@ Governance's unique observation count rose from 2,641 to 2,652. Storytelling's s
 \caption[Storytelling after Refresh Data]{Storytelling after Refresh Data, showing the new publication time, updated seven-day summary and earthquake map.}
 \label{fig:storytelling-refresh}
 \end{sidewaysfigure}
-
-\clearpage
-\section{Automated Checks}
-The Spark tests in the Airflow image (20 tests) cover the Workshop~3 Gold layer and every Workshop~4 addition: duplicate, schema and outlier rates, box-plot statistics, daily volume, thresholds and statuses, the historical-versus-current comparison and its Poisson probability. The dashboard tests in the project environment (15 tests) cover the selection of the newest complete Gold pair, older pairs without the newer columns, the reserved palette, the time windows, the wording rules of the main message, the order of the bulletin table, and an explanatory message instead of an error when a chart has no data. Finally, the repository was cloned into an empty folder on 28 November 2026, the dashboard image was built without cache, and both applications were started with only the commands of the README; each served its full layout with the publication \texttt{20261128\_040949} and no local data.
 
 \chapter{Challenges and Resolutions}
 \begin{itemize}
@@ -598,10 +644,10 @@ For the final project, the indicator still needs the sensitivity analysis propos
     % -------------------------------------------------------------------
     % References
     % -------------------------------------------------------------------
+\setlength{\bibsep}{0pt}
 \begin{thebibliography}{99}
 \small
 \raggedright
-\setlength{\bibsep}{2pt}
 \bibitem{hazel} National Geophysical Data Center / World Data Service. \emph{NCEI/WDS Global Historical Tsunami Database}. NOAA National Centers for Environmental Information. doi:10.7289/V5PN93H7. Accessed through the HazEL API, \url{https://www.ngdc.noaa.gov/hazel/view/swagger}, 8 November 2026.
 \bibitem{usgsfdsn} U.S.\ Geological Survey. \emph{API Documentation -- Earthquake Catalog}. \url{https://earthquake.usgs.gov/fdsnws/event/1/}. Accessed 8 November 2026.
 \bibitem{usgscredit} U.S.\ Geological Survey. \emph{Acknowledging or Crediting USGS}. \url{https://www.usgs.gov/information-policies-and-instructions/acknowledging-or-crediting-usgs}. Accessed 8 November 2026.
@@ -641,6 +687,7 @@ Accessed 16 November 2026.
 \bibitem{courseproject} Sierra, C. A. \emph{Course Project Description: Natural Hazard Monitoring Systems}. Data Analysis Programming, Semester 2026-II. Universidad Distrital Francisco Jos\'e de Caldas. Course handout.
 \bibitem{teamassignment} Sierra, C. A. \emph{Team Project Assignment: Natural Hazard Monitoring Systems}. Data Analysis Programming, Semester 2026-II. Universidad Distrital Francisco Jos\'e de Caldas. Course handout.
 \bibitem{goldguide} Sierra, C. A. \emph{Workshop No.~3: Silver-to-Gold Pipeline, Governance KPIs, and Storytelling Definition}. Data Analysis Programming, Semester 2026-I. Universidad Distrital Francisco Jos\'e de Caldas. Course handout.
+\bibitem{dashboardguide} Sierra, C. A. \emph{Workshop No.~4 --- Interactive Dashboards with Plotly Dash}. Data Analysis Programming, Semester 2026-I. Universidad Distrital Francisco Jos\'e de Caldas. Course handout.
 \bibitem{edaguide} Sierra, C. A. \emph{Data Engineering and Visualization: ETLs, EDAs, Data Curation, and Visual Storytelling}. Semester 2026-I. Universidad Distrital Francisco Jos\'e de Caldas. Course slides.
 \bibitem{curationnb} Sierra, C. A. \emph{Exploratory Data Analysis (EDA) \& Data Curation} and \emph{Data Visualization Gallery}. Data Analysis Programming, practical notebooks. Universidad Distrital Francisco Jos\'e de Caldas.
 \bibitem{scipy} The SciPy community. \emph{SciPy documentation: statistical functions}. \url{https://docs.scipy.org/doc/scipy/reference/stats.html}.

@@ -11,17 +11,20 @@ Course scope reminder (Team Project Assignment): Workshop 4 covers temporal and 
 | Governance | `dashboard/governance_app.py` | http://localhost:8050 | `datalake_gold/governance_*.parquet` |
 | Storytelling | `dashboard/storytelling_app.py` | http://localhost:8051 | `datalake_gold/storytelling_*.parquet` |
 
-## Plan
+## Checklist
 
-- [x] Branch `feat/workshop4-dashboards`, dashboard dependencies in `requirements.txt`, this folder and the report skeleton
-- [x] Gold additions (`src/gold_dashboard.py`, `gold_dashboard` block of `config/sources.yaml`): duplicate rate, schema compliance rate, outlier rate per numeric field, volume over time, quality thresholds and status, `historical_vs_current`
-- [x] Clean end-to-end run on one machine (Lina's laptop) and Gold samples (final run with more history still to do)
+- [x] Branch `feat/workshop4-dashboards` and dashboard dependencies in `requirements.txt`
+- [x] Gold additions for duplicate rate, schema compliance, field outlier rates and box-plot statistics, volume over time, quality thresholds and statuses, and `historical_vs_current`
+- [x] End-to-end Bronze → Silver → Gold run in a clean environment with shared Gold samples
 - [x] Dashboard layout design and plain-language labels (sketches in `report/figures/`)
 - [x] Shared dashboard code: `dashboard/gold.py` (latest complete Gold pair, samples fallback, refresh) and `dashboard/theme.py` (Okabe-Ito palette, header, KPI cards, chart defaults)
 - [x] Governance app `dashboard/governance_app.py` (KPI cards, null rates, volume over time, box plots, outlier rates, quality table and matrix, pipeline health)
 - [x] Storytelling app `dashboard/storytelling_app.py` (main message, 24 h / 7 days filter, level cards, map, daily activity, bulletins, historical vs current, regional baseline, magnitudes, tsunamis per year)
-- [x] Compose services `governance-dashboard` and `storytelling-dashboard` (`dashboard/Dockerfile`) and run instructions
-- [ ] Screenshots in `screenshots/` and `report/Team8_Workshop4_Tsunami.pdf`
+- [x] Docker Compose integration for `governance-dashboard` and `storytelling-dashboard`
+- [x] Fresh-clone verification. Both dashboards started using the documented commands and loaded the shared Gold sample.
+- [x] Refresh Data validation. Both running dashboards loaded the new Gold publication after incremental ingestion, Silver processing and Gold processing. [Refresh evidence](evidence/refresh/)
+- [x] Final report. [Workshop 4 report (PDF)](report/Team8_Workshop4_Tsunami.pdf)
+- [x] Visual evidence. [Airflow pipeline](evidence/pipeline/) · [Governance](evidence/governance/) · [Storytelling](evidence/storytelling/)
 - [ ] Tag `v1.0-workshop4`
 
 ## Run the dashboards
@@ -34,3 +37,11 @@ python -m dashboard.storytelling_app    # http://localhost:8051
 ```
 
 Both read the newest complete Gold pair among `datalake_gold/` and `datalake_gold/samples/` (set `GOLD_DIR` to use another folder). **Refresh data** reloads a newer Gold run without restarting.
+
+## Shared Gold sample
+
+The report's analytical results use the committed Gold publication `20261128_040949`. For a local run with the project virtual environment, set `GOLD_DIR=datalake_gold/samples` when starting either dashboard to reproduce those results. [Governance Parquet](../datalake_gold/samples/governance_20261128_040949.parquet/) · [Storytelling Parquet](../datalake_gold/samples/storytelling_20261128_040949.parquet/)
+
+## Future work
+
+Run the pipeline continuously for longer during the final project to collect more history for volume, freshness and run compliance.
