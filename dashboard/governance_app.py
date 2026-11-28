@@ -33,6 +33,13 @@ BOX_VARIABLES = {
     "max_water_height": ("Maximum Water Height", "Water height (m)", "tsunami_events"),
     "num_runups": ("Number of Runups", "Runups (count)", "tsunami_events"),
 }
+BOX_TOPICS_BY_SOURCE = {
+    "usgs_fdsn": "earthquakes",
+    "usgs_realtime": "earthquakes",
+    "noaa_hazel": "tsunami_events",
+    "ntwc": None,
+    "ptwc": None,
+}
 
 cache = GoldCache(include_storytelling=False)
 
@@ -204,17 +211,31 @@ def source_charts(pair, source):
     return missing_chart, daily_volume_chart(rows("volume")), outliers
 
 
-def distribution_box_plot(pair, source, field):
+def box_variable_options(source):
+    return [{"label": label, "value": field} for field, (label, _, topic) in BOX_VARIABLES.items()
+            if not source or topic == BOX_TOPICS_BY_SOURCE.get(source)]
+
+
+def distribution_box_plot(pair, source, field, view="full"):
     title = "Distribution and Outliers by Source"
+    if field is None:
+        return theme.empty_figure(title, "These distribution variables do not apply to tsunami bulletin sources.")
+
+    rows = pair.topic("outlier_rate").dropna(
+        subset=["q1", "median", "q3", "lower_whisker", "upper_whisker", "outlier_points"])
+    if rows.empty:
+        return theme.empty_figure(
+            title,
+            f"Gold publication {pair.stamp} has no Box Plot statistics. "
+            "Point GOLD_DIR to a folder with a publication that includes them and restart Governance.",
+        )
+
     _, axis, topic = BOX_VARIABLES[field]
-    rows = pair.topic("outlier_rate")
     rows = rows.loc[rows["field"].eq(field) & rows["silver_topic"].eq(topic)]
     if source:
         rows = rows.loc[rows["source"].eq(source)]
-    rows = rows.dropna(subset=["q1", "median", "q3", "lower_whisker", "upper_whisker", "outlier_points"])
     if rows.empty:
-        return theme.empty_figure(title, "Distribution statistics are unavailable for this selection "
-                                  "in the current Gold publication.")
+        return theme.empty_figure(title, f"No distribution statistics for this selection in Gold publication {pair.stamp}.")
 
     figure = go.Figure()
     for row in rows.sort_values("source").itertuples(index=False):
@@ -225,10 +246,12 @@ def distribution_box_plot(pair, source, field):
                        line_color=color, whiskerwidth=0.5, boxpoints=False, hoverinfo="skip")
         # Plotly uses fixed hover labels on boxes. Mark the median and outliers for the detailed tooltip.
         points = [row.median, *row.outlier_points]
+        outliers = len(row.outlier_points)
         figure.add_scatter(
             x=[name] * len(points), y=points, mode="markers",
-            marker={"color": color, "size": 7, "symbol": ["diamond-open"] + ["circle"] * len(row.outlier_points)},
-            text=["Median"] + ["Outlier"] * len(row.outlier_points),
+            marker={"color": color, "size": [7] + [6] * outliers, "opacity": [1] + [0.55] * outliers,
+                    "symbol": ["diamond-open"] + ["circle"] * outliers},
+            text=["Median"] + ["Outlier"] * outliers,
             hovertemplate=(
                 f"Source: {name}<br>Evaluated observations: {theme.fmt(row.outlier_values)}<br>"
                 f"Q1: {theme.fmt(row.q1, 2)}<br>Median: {theme.fmt(row.median, 2)}<br>"
@@ -240,7 +263,16 @@ def distribution_box_plot(pair, source, field):
     theme.style(figure, title, y=axis, legend=False)
     figure.update_xaxes(automargin=True)
     figure.update_yaxes(automargin=True)
-    return figure.update_layout(hovermode="closest", margin={"t": 16})
+    figure.update_layout(hovermode="closest", margin={"t": 16})
+    if view == "focus":
+        low, high = rows["lower_whisker"].min(), rows["upper_whisker"].max()
+        padding = 0.05 * ((high - low) or max(abs(low), 1))
+        figure.update_yaxes(range=[low - padding, high + padding])
+        figure.add_annotation(text="Some outliers may fall outside the visible range.",
+                              x=0.5, y=1, xref="paper", yref="paper", yanchor="bottom", yshift=5,
+                              showarrow=False, font={"size": 11, "color": theme.GREY})
+        figure.update_layout(margin={"t": 32})
+    return figure
 
 
 def table(columns, rows, empty="Indicator unavailable in this Gold publication."):
@@ -254,11 +286,29 @@ def table(columns, rows, empty="Indicator unavailable in this Gold publication."
 
 
 def unique_observations_table(pair):
-    counts = observations(pair).groupby("source")["unique_observations"].sum(min_count=1)
-    counts = counts.sort_values(ascending=False)
-    rows = [(source_name(source), theme.fmt(count)) for source, count in counts.items()]
-    rows.append((html.Strong("Total"), html.Strong(theme.fmt(counts.sum(min_count=1)))))
-    return table(("Source", "Unique Observations"), rows)
+    counts = observations(pair)
+
+    def summarize(group, *, total=False):
+        required = max(len(group), 1)
+        evaluated = group["unique_observations"].sum(min_count=required)
+        completeness = []
+        for field in ("missing_coordinates", "incomplete_times"):
+            affected = group[field].sum(min_count=required)
+            reported = group[f"{field}_pct"]
+            if pd.isna(affected) or reported.isna().any():
+                completeness.append("—")
+                continue
+            pct = reported.iat[0] if len(group) == 1 and not total else percentage(affected, evaluated)
+            completeness.append(f"{rate(pct)} ({theme.fmt(affected)})" if pd.notna(pct) else "—")
+        return evaluated, *completeness
+
+    summaries = [(source_name(source), *summarize(group)) for source, group in counts.groupby("source")]
+    summaries.sort(key=lambda row: row[1] if pd.notna(row[1]) else -1, reverse=True)
+    rows = [(source, theme.fmt(evaluated), coordinates, timestamps)
+            for source, evaluated, coordinates, timestamps in summaries]
+    evaluated, coordinates, timestamps = summarize(counts, total=True)
+    rows.append(tuple(html.Strong(value) for value in ("Total", theme.fmt(evaluated), coordinates, timestamps)))
+    return table(("Source", "Unique Observations", "Missing Coordinates", "Missing Timestamps"), rows)
 
 
 def quality_summary(pair):
@@ -391,27 +441,36 @@ def layout():
         ], className="g-2 align-items-center mb-3"),
         dbc.Row([
             dbc.Col(chart_card("missing-values", missing, "null_rate",
-                               "Only fields with missing values are shown. Hatching marks expected gaps."), lg=5, xs=12),
+                               "Only fields with missing values are shown. Hatching marks expected gaps."), lg=6, xs=12),
             dbc.Col(chart_card("ingestion-trend", trend, "volume",
                                "Hover over a capture day to see processed rows and new observations.",
                                footer=html.Div([
-                                   html.H4("Unique Observations by Source", className="h6 mb-1"),
+                                   html.H4("Source Quality Overview", className="h6 mb-1"),
                                    html.Div(unique_observations_table(pair), id="unique-observations-by-source"),
                                    html.Small("The table counts distinct observations across the Gold publication. "
                                               "The chart shows rows processed per capture day.",
                                               className="d-block text-muted mt-1"),
-                               ], className="border-top mt-2 pt-2")), lg=7, xs=12),
+                                   html.Small("Missing Coordinates counts observations missing latitude or longitude. "
+                                              "Missing Timestamps counts observations without their event or bulletin timestamp.",
+                                              className="d-block text-muted mt-1"),
+                               ], className="border-top mt-2 pt-2")), lg=6, xs=12),
         ], className="g-3 mb-3"),
         dbc.Row(dbc.Col(chart_card(
             "distribution-box-plot", distribution_box_plot(pair, "", "magnitude"), "outlier_rate",
             "Outliers represent statistically unusual observations and may correspond to real natural events.",
             controls=dbc.Row([
-                dbc.Col(html.Label("Variable", htmlFor="box-variable", className="fw-bold"), width="auto"),
-                dbc.Col(dcc.Dropdown(
-                    id="box-variable", value="magnitude", clearable=False,
-                    options=[{"label": label, "value": field} for field, (label, _, _) in BOX_VARIABLES.items()],
-                ), xs=12, sm=6, lg=4),
-            ], className="g-2 align-items-center mb-2"),
+                dbc.Col([
+                    html.Label("Variable", htmlFor="box-variable", className="fw-bold mb-1"),
+                    dcc.Dropdown(id="box-variable", value="magnitude", clearable=False,
+                                 options=box_variable_options("")),
+                ], xs=12, sm=6, lg=4),
+                dbc.Col([
+                    html.Label("View", htmlFor="box-view", className="fw-bold mb-1"),
+                    dcc.Dropdown(id="box-view", value="full", clearable=False,
+                                 options=[{"label": "Full Distribution", "value": "full"},
+                                          {"label": "Focus on Box", "value": "focus"}]),
+                ], xs=12, sm=6, lg=4),
+            ], className="g-2 mb-2"),
         )), className="g-3 mb-3"),
         dbc.Row([
             dbc.Col(chart_card("outlier-rates", outliers, "outlier_rate",
@@ -477,11 +536,18 @@ def update_dashboard(_clicks, source, shown_stamp):
 
 @app.callback(
     Output("distribution-box-plot", "children"),
+    Output("box-variable", "options"), Output("box-variable", "value"), Output("box-variable", "disabled"),
     Input("gold-stamp", "data"), Input("source-filter", "value"), Input("box-variable", "value"),
+    Input("box-view", "value"),
     prevent_initial_call=True,
 )
-def update_distribution(_stamp, source, field):
-    return graph(distribution_box_plot(cache.get(), source, field))
+def update_distribution(_stamp, source, field, view):
+    options = box_variable_options(source)
+    selected = field
+    if field not in [option["value"] for option in options]:
+        selected = options[0]["value"] if options else None
+    return (graph(distribution_box_plot(cache.get(), source, selected, view)),
+            options, selected if selected != field else no_update, not options)
 
 
 if __name__ == "__main__":
