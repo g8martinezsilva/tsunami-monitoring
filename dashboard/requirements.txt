@@ -1,0 +1,6 @@
+# Packages of the dashboard containers (Workshop 4); the project venv installs them from ../requirements.txt
+dash>=4.0,<5
+dash-bootstrap-components>=2.0,<3
+plotly>=6.0
+pandas>=2.2,<3.0
+pyarrow>=14

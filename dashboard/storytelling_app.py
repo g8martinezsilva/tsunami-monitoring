@@ -8,6 +8,7 @@ from the Gold publication time, the "last update" shown in the header.
 The Tsunami Relevance Level is a monitoring aid, never a tsunami prediction or warning.
 """
 
+import os
 from datetime import timedelta
 
 import dash_bootstrap_components as dbc
@@ -375,4 +376,5 @@ def update(window, _clicks, shown_stamp):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=8051, load_dotenv=False)
+    # 127.0.0.1 locally; the Docker image sets DASH_HOST=0.0.0.0 so the published port is reachable
+    app.run(host=os.environ.get("DASH_HOST", "127.0.0.1"), port=8051, load_dotenv=False)

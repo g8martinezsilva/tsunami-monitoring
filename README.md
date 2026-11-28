@@ -40,7 +40,7 @@ datalake_gold/   Gold layer: governance and storytelling summaries (Workshop 3)
 airflow/        Airflow image (Dockerfile, requirements) and DAGs (airflow/dags/)
 data/raw/      Workshop 1 raw landing zone (kept; replaced by datalake_bronze/)
 sql/           Schema definitions
-dashboard/     Plotly Dash application
+dashboard/     Plotly Dash dashboards: governance (:8050) and storytelling (:8051)
 tests/         Tests and recorded fixtures
 notebooks/     Source profiling and analysis
 docs/          Project documentation (diagrams, source-status log)
@@ -105,6 +105,32 @@ docker compose down           # stop; data stay in the Docker volumes and the da
 ```
 
 Generated datalake files are git-ignored; selected samples are kept in each layer's `samples/` folder.
+
+## Dashboards (Workshop 4)
+
+Two independent Plotly Dash applications read only the Gold Parquet files (the newest complete pair in `datalake_gold/` or its committed `samples/`):
+
+| Dashboard | For | Address |
+|---|---|---|
+| Governance | The data team: quality KPIs, null and outlier rates, volume, pipeline health | http://localhost:8050 |
+| Storytelling | The Pacific monitoring analyst: recent earthquakes, relevance level, official bulletins, historical context | http://localhost:8051 |
+
+With Docker (one command each; a plain `docker compose up` does not start them):
+
+```bash
+docker compose up -d governance-dashboard
+docker compose up -d storytelling-dashboard
+docker compose --profile dashboards stop    # stop both
+```
+
+Or from the project venv (`pip install -r requirements.txt`), each in its own terminal:
+
+```bash
+python -m dashboard.governance_app
+python -m dashboard.storytelling_app
+```
+
+Run the `gold_processing` DAG (or wait for its daily run) and press **Refresh data** to show a newer Gold publication. The Tsunami Relevance Level is a monitoring aid, not a tsunami prediction; official warnings come only from the tsunami warning centers.
 
 ## Reproduce Workshop 1 profiling
 

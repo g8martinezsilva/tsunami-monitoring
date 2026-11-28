@@ -1,5 +1,7 @@
 """Data Governance Dashboard for the published Gold indicators."""
 
+import os
+
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.graph_objects as go
@@ -632,4 +634,5 @@ def update_distribution(_stamp, source, field, view):
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=8050, load_dotenv=False)
+    # 127.0.0.1 locally; the Docker image sets DASH_HOST=0.0.0.0 so the published port is reachable
+    app.run(host=os.environ.get("DASH_HOST", "127.0.0.1"), port=8050, load_dotenv=False)

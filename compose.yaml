@@ -139,6 +139,34 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  # Workshop 4 dashboards: two independent Plotly Dash apps that read only the Gold layer.
+  # Not started by a plain "docker compose up"; start each one with
+  #   docker compose up -d governance-dashboard    -> http://localhost:8050
+  #   docker compose up -d storytelling-dashboard  -> http://localhost:8051
+  governance-dashboard: &dashboard
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    image: tsunami-dashboard:1.0
+    container_name: tsunami-governance-dashboard
+    profiles: [dashboards]
+    command: python -m dashboard.governance_app
+    environment:
+      GOLD_DIR: /app/datalake_gold
+    volumes:
+      - ./dashboard:/app/dashboard:ro
+      - ./datalake_gold:/app/datalake_gold:ro
+    ports:
+      - "127.0.0.1:8050:8050"
+    restart: unless-stopped
+
+  storytelling-dashboard:
+    <<: *dashboard
+    container_name: tsunami-storytelling-dashboard
+    command: python -m dashboard.storytelling_app
+    ports:
+      - "127.0.0.1:8051:8051"
+
 volumes:
   postgres_data:
   airflow_db_data:
