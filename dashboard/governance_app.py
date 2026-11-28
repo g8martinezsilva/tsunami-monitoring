@@ -136,31 +136,53 @@ def field_rates(rows, title, column, axis, counts):
     return figure.update_layout(barmode="overlay", margin={"l": 8, "r": 50, "t": 48, "b": 50})
 
 
-def daily_volume(rows):
-    title = "Daily Ingestion Volume"
+def daily_volume_charts(rows):
+    bar_title = "Daily Ingestion Volume"
+    trend_title = "Processed Rows Over Time"
     rows = rows.dropna(subset=["period", "volume_rows"]).sort_values("period")
     if rows.empty:
-        return theme.empty_figure(title, "No dated volume observations for the selected sources.")
+        message = "No dated volume observations for the selected sources."
+        return theme.empty_figure(bar_title, message), theme.empty_figure(trend_title, message)
 
-    figure = go.Figure()
+    bars, trend = go.Figure(), go.Figure()
     for source, group in rows.groupby("source", sort=False):
+        name = theme.source_name(source)
+        color = theme.SOURCE_COLORS.get(source, theme.GREY)
         for column, label, pattern in (("volume_rows", "Processed rows", ""),
                                        ("new_observations", "New observations", "/")):
             values = group.dropna(subset=[column])
             if values.empty:
                 continue
-            figure.add_bar(
-                name=theme.source_name(source), x=values["period"].astype(str), y=values[column].astype(float),
+            bars.add_bar(
+                name=name, x=values["period"].astype(str), y=values[column].astype(float),
                 legendgroup=source, showlegend=column == "volume_rows",
-                marker={"color": theme.SOURCE_COLORS.get(source, theme.GREY), "pattern": {"shape": pattern}},
+                marker={"color": color, "pattern": {"shape": pattern}},
                 hovertemplate=f"%{{x}}<br>{label}: %{{y:,.0f}}<extra>%{{fullData.name}}</extra>",
             )
-    theme.style(figure, title, x="Capture day (UTC)", y="Observations (count)", height=415)
+        trend.add_scatter(
+            name=name, x=group["period"].astype(str), y=group["volume_rows"].astype(float),
+            mode="lines+markers" if group["period"].nunique() > 1 else "markers",
+            line={"color": color}, marker={"color": color, "size": 8},
+            hovertemplate="%{y:,.0f} rows<extra>%{fullData.name}</extra>",
+        )
+
+    for figure, title, axis in ((bars, bar_title, "Observations (count)"),
+                                (trend, trend_title, "Processed rows (log scale)")):
+        theme.style(figure, title, x="Capture day (UTC)", y=axis, height=415)
+        figure.update_layout(margin={"l": 50, "r": 8, "t": 32, "b": 116},
+                             legend={"yanchor": "top", "y": -0.23, "font": {"size": 11}})
+        figure.update_xaxes(automargin=True)
+        figure.update_yaxes(automargin=True)
+
     dates = rows["period"].astype(str).unique().tolist()
-    figure.update_xaxes(type="category", categoryorder="array", categoryarray=dates, automargin=True)
-    figure.update_yaxes(rangemode="tozero", automargin=True)
-    return figure.update_layout(barmode="group", hovermode="x", margin={"l": 50, "r": 8, "t": 32, "b": 116},
-                                legend={"yanchor": "top", "y": -0.23, "font": {"size": 11}})
+    bars.update_xaxes(type="category", categoryorder="array", categoryarray=dates)
+    bars.update_yaxes(rangemode="tozero")
+    bars.update_layout(barmode="group", hovermode="x")
+    trend.update_xaxes(type="date", tickformat="%Y-%m-%d", tickvals=dates if len(dates) <= 5 else None,
+                       ticklabeloverflow="allow")
+    trend.update_yaxes(type="log", dtick=1)
+    trend.update_layout(hovermode="x unified", margin={"r": 36})
+    return bars, trend
 
 
 def source_charts(pair, source):
@@ -178,7 +200,8 @@ def source_charts(pair, source):
     )
     outliers = field_rates(rows("outlier_rate"), "Outlier Rates by Field and Source", "outlier_rate_pct",
                            "IQR outliers (%)", (("outlier_count", "Outliers"), ("outlier_values", "Evaluated values")))
-    return missing_chart, daily_volume(rows("volume")), outliers
+    bars, trend = daily_volume_charts(rows("volume"))
+    return missing_chart, bars, trend, outliers
 
 
 def table(columns, rows, empty="Indicator unavailable in this Gold publication."):
@@ -293,7 +316,7 @@ def source_options(pair):
 
 def layout():
     pair = cache.get()
-    missing, volume, outliers = source_charts(pair, "")
+    missing, volume, trend, outliers = source_charts(pair, "")
     return html.Main(dbc.Container([
         html.Header(theme.header("Data Governance Dashboard", "", pair), className="governance-heading"),
         dcc.Store(id="gold-stamp", data=pair.stamp),
@@ -302,18 +325,20 @@ def layout():
             dbc.Col(html.Label("Chart source", htmlFor="source-filter", className="fw-bold"), width="auto"),
             dbc.Col(dcc.Dropdown(id="source-filter", options=source_options(pair), value="", clearable=False),
                     xs=12, sm=6, md=4, lg=3),
-            dbc.Col(html.Small("Filters missing values, ingestion volume and outlier charts.", className="text-muted"),
+            dbc.Col(html.Small("Filters the four charts.", className="text-muted"),
                     xs=12, md=True),
         ], className="g-2 align-items-center mb-3"),
         dbc.Row([
-            dbc.Col(chart_card("missing-values", missing, "null_rate",
-                               "Only fields with missing values are shown. Hatching marks expected gaps."), lg=6, xs=12),
             dbc.Col(chart_card("ingestion-volume", volume, "volume",
                                "Solid bars show processed rows. Hatched bars show new observations."), lg=6, xs=12),
+            dbc.Col(chart_card("ingestion-trend", trend, "volume",
+                               "Each marker represents a recorded capture day."), lg=6, xs=12),
+            dbc.Col(chart_card("missing-values", missing, "null_rate",
+                               "Only fields with missing values are shown. Hatching marks expected gaps."), lg=6, xs=12),
             dbc.Col(chart_card("outlier-rates", outliers, "outlier_rate",
                                "The IQR rule identifies unusual values, including real natural events."), lg=6, xs=12),
             dbc.Col(panel("Data Quality Summary", html.Div(id="quality-summary", children=quality_summary(pair),
-                                                           className="quality-scroll")), lg=6, xs=12),
+                                                           className="quality-scroll")), xs=12),
         ], className="g-3"),
         html.Section(pipeline_health(pair), id="pipeline-health", className="mt-3 mb-4"),
     ], fluid=True, className="governance px-3 px-lg-4"), className="bg-light min-vh-100")
@@ -347,7 +372,8 @@ app.layout = layout
 
 
 @app.callback(
-    Output("missing-values", "children"), Output("ingestion-volume", "children"), Output("outlier-rates", "children"),
+    Output("missing-values", "children"), Output("ingestion-volume", "children"), Output("ingestion-trend", "children"),
+    Output("outlier-rates", "children"),
     Output("gold-label", "children"), Output("kpis", "children"), Output("source-filter", "options"),
     Output("quality-summary", "children"), Output("pipeline-health", "children"), Output("gold-stamp", "data"),
     Input("refresh", "n_clicks"), Input("source-filter", "value"), State("gold-stamp", "data"),
