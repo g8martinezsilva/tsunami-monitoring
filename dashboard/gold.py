@@ -2,8 +2,9 @@
 
 The dashboards read only the Gold Parquet files, never Silver, the database or a source API.
 `latest_pair()` finds the newest complete pair: a governance and a storytelling dataset with the
-same UTC stamp, each one a Parquet file or a Spark directory with its _SUCCESS marker. On a fresh
-clone without local Gold runs it falls back to the committed samples. GOLD_DIR overrides the folder.
+same UTC stamp, each one a Parquet file or a Spark directory with its _SUCCESS marker. It compares the
+local Gold runs with the committed samples, so an old local run never hides a newer sample (and a
+fresh clone uses the samples). GOLD_DIR overrides the folder.
 
 `GoldCache.get()` checks the folder on every call but reads the Parquet files again only when a
 newer pair appears, so the dashboards refresh cheaply (manual button or interval).
@@ -103,14 +104,15 @@ def _read(path, columns):
 
 
 def latest_pair(folder=None):
-    """Newest complete pair in the Gold folder, or in its samples/ subfolder when there is none."""
+    """Newest complete pair among the local Gold runs and the committed samples (a local run wins a tie)."""
     folder = Path(folder) if folder else gold_dir()
-    for candidate, from_samples in ((folder, False), (folder / "samples", True)):
-        pairs = find_pairs(candidate)
-        if pairs:
-            stamp, governance, storytelling = pairs[0]
-            return GoldPair(stamp, governance, storytelling, from_samples)
-    raise FileNotFoundError(f"No complete Gold pair in {folder} or {folder / 'samples'}: run the gold_processing DAG")
+    candidates = [(stamp, not from_samples, governance, storytelling, from_samples)
+                  for candidate, from_samples in ((folder, False), (folder / "samples", True))
+                  for stamp, governance, storytelling in find_pairs(candidate)]
+    if not candidates:
+        raise FileNotFoundError(f"No complete Gold pair in {folder} or {folder / 'samples'}: run the gold_processing DAG")
+    stamp, _, governance, storytelling, from_samples = max(candidates)
+    return GoldPair(stamp, governance, storytelling, from_samples)
 
 
 def load(pair, *, include_storytelling=True):

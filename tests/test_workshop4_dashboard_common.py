@@ -43,6 +43,14 @@ class GoldLoadingTests(unittest.TestCase):
         self.assertTrue(pair.from_samples)
         self.assertIn("committed sample", pair.label)
 
+    def test_a_newer_sample_beats_an_old_local_run(self):
+        write_pair(self.root, "20261120_100000")
+        write_pair(self.root / "samples", "20261128_040949")
+        pair = self.gold.latest_pair(self.root)
+        self.assertEqual((pair.stamp, pair.from_samples), ("20261128_040949", True))
+        write_pair(self.root, "20261128_040949")  # the same stamp run locally: the local copy wins
+        self.assertFalse(self.gold.latest_pair(self.root).from_samples)
+
     def test_no_pair_explains_what_to_run(self):
         with self.assertRaisesRegex(FileNotFoundError, "gold_processing"):
             self.gold.latest_pair(self.root)
@@ -74,7 +82,9 @@ class GoldLoadingTests(unittest.TestCase):
 class ThemeTests(unittest.TestCase):
     def test_every_level_source_and_status_has_a_colour(self):
         from dashboard import theme
-        self.assertEqual(set(theme.LEVEL_ORDER), set(theme.LEVEL_COLORS))
+        self.assertTrue(set(theme.LEVEL_ORDER) < set(theme.LEVEL_COLORS))
+        # Relevance-level colours are reserved: no source shares one
+        self.assertFalse(set(theme.SOURCE_COLORS.values()) & set(theme.LEVEL_COLORS.values()))
         self.assertEqual(set(theme.SOURCE_COLORS), set(theme.SOURCE_NAMES))
         self.assertTrue({"ok", "warning", "review", "expected", "n/a"} <= set(theme.STATUS_COLORS))
 

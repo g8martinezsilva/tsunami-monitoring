@@ -1,8 +1,9 @@
 """Shared look of both dashboards (Workshop 4): palette, header, KPI cards and chart defaults.
 
 Colours come from the Okabe-Ito palette, which stays distinguishable for the common forms of colour
-blindness. The same colour always means the same thing in both applications: one colour per source,
-per Tsunami Relevance Level and per quality status.
+blindness (the two bulletin centers extend it). The same colour always means the same thing in both
+applications, and the four relevance-level colours are reserved: no source uses them. The assignment
+follows the design in the Workshop 4 report (Visualization Design Decisions, colour table).
 """
 
 import dash_bootstrap_components as dbc
@@ -17,12 +18,16 @@ TOPIC = "Pacific earthquakes, historical tsunamis and official tsunami bulletins
 BLACK, ORANGE, SKY, GREEN, YELLOW, BLUE, VERMILLION, PURPLE, GREY = (
     "#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#8C8C8C")
 
-SOURCE_COLORS = {"usgs_fdsn": BLUE, "usgs_realtime": SKY, "noaa_hazel": GREEN, "ntwc": PURPLE, "ptwc": VERMILLION}
+DARK_GOLD, VIOLET = "#8C6D1F", "#5E3C99"  # extensions for the two warning centers
+
+SOURCE_COLORS = {"usgs_fdsn": BLUE, "usgs_realtime": PURPLE, "noaa_hazel": GREEN, "ntwc": DARK_GOLD, "ptwc": VIOLET}
 SOURCE_NAMES = {"usgs_fdsn": "USGS catalog (FDSN)", "usgs_realtime": "USGS real-time feed",
                 "noaa_hazel": "NOAA tsunami database", "ntwc": "NTWC (Alaska)", "ptwc": "PTWC (Hawaii)"}
-LEVEL_COLORS = {"LOW": SKY, "MODERATE": ORANGE, "HIGH": VERMILLION, "OFFICIAL ALERT": BLACK}
+NOT_RATED = "NOT RATED"  # earthquakes below M6 receive no relevance level
+LEVEL_COLORS = {"LOW": SKY, "MODERATE": ORANGE, "HIGH": VERMILLION, "OFFICIAL ALERT": BLACK, NOT_RATED: GREY}
 LEVEL_ORDER = ["LOW", "MODERATE", "HIGH", "OFFICIAL ALERT"]
-STATUS_COLORS = {"ok": GREEN, "warning": ORANGE, "review": PURPLE, "expected": GREY, "n/a": GREY}
+# Status colours appear only in status marks, always next to the status name
+STATUS_COLORS = {"ok": GREEN, "warning": YELLOW, "review": PURPLE, "expected": GREY, "n/a": GREY}
 STATUS_BADGES = {"ok": "success", "warning": "warning", "review": "info", "expected": "secondary", "n/a": "light"}
 
 RELEVANCE_NOTE = ("The Tsunami Relevance Level is a monitoring aid computed from magnitude, depth and nearby "
