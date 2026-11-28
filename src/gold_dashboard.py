@@ -67,7 +67,7 @@ def schema_compliance(current, paths, settings):
 
 
 def outlier_rates(current, settings):
-    """IQR outliers per numeric field, topic and source, over the current observations."""
+    """IQR outlier rates and box plot statistics over current observations, per field, topic and source."""
     parts = []
     for topic, fields in settings["outlier_fields"].items():
         frame = current.get(topic)
@@ -77,14 +77,20 @@ def outlier_rates(current, settings):
             values = frame.select("source", F.col(field).cast("double").alias("v")).where(
                 F.col("v").isNotNull() & ~F.isnan("v"))
             fences = (values.groupBy("source")
-                      .agg(F.percentile_approx("v", [0.25, 0.75], 10000).alias("q"))
-                      .select("source", F.col("q")[0].alias("q1"), F.col("q")[1].alias("q3"))
+                      .agg(F.percentile_approx("v", [0.25, 0.5, 0.75], 10000).alias("q"))
+                      .select("source", F.col("q")[0].alias("q1"), F.col("q")[1].alias("median"),
+                              F.col("q")[2].alias("q3"))
                       .withColumn("iqr", F.col("q3") - F.col("q1")))
             beyond = (F.col("v") < F.col("q1") - 1.5 * F.col("iqr")) | (F.col("v") > F.col("q3") + 1.5 * F.col("iqr"))
+            inliers = F.when(~beyond, F.col("v"))
             parts.append(
                 values.join(fences, "source")
-                .groupBy("source").agg(F.count("*").alias("outlier_values"),
-                                       F.sum(beyond.cast("long")).alias("outlier_count"))
+                .groupBy("source", "q1", "median", "q3", "iqr")
+                .agg(F.count("*").alias("outlier_values"),
+                     F.sum(beyond.cast("long")).alias("outlier_count"),
+                     F.min(inliers).alias("lower_whisker"),
+                     F.max(inliers).alias("upper_whisker"),
+                     F.sort_array(F.collect_list(F.when(beyond, F.col("v")))).alias("outlier_points"))
                 .withColumn("outlier_rate_pct", F.round(100.0 * F.col("outlier_count") / F.col("outlier_values"), 2))
                 .withColumn("field", F.lit(field))
                 .withColumn("silver_topic", F.lit(topic))

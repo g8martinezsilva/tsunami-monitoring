@@ -31,6 +31,7 @@ GOVERNANCE_COLUMNS = [
     "coverage_pct", "silver_topic", "schema_rows", "schema_compliant", "schema_compliance_pct",
     "files_checked", "files_compliant", "outlier_values", "outlier_count", "outlier_rate_pct", "period",
     "volume_rows", "new_observations", "threshold", "status",
+    "q1", "median", "q3", "iqr", "lower_whisker", "upper_whisker", "outlier_points",
 ]
 STORYTELLING_COLUMNS = [
     "metric", "source", "year", "center", "magnitude_type", "bin_start", "bin_end", "unit", "count",

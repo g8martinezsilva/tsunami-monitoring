@@ -52,6 +52,8 @@ class GoldLoadingTests(unittest.TestCase):
         pair = self.gold.load(self.gold.latest_pair(self.root))
         self.assertTrue({"status", "schema_compliance_pct", "duplicate_rate_pct"} <= set(pair.governance))
         self.assertTrue(pair.governance["status"].isna().all())
+        box_columns = ["q1", "median", "q3", "iqr", "lower_whisker", "upper_whisker", "outlier_points"]
+        self.assertTrue(pair.governance[box_columns].isna().all().all())
         self.assertEqual(len(pair.topic("earthquakes")), 1)
         self.assertEqual(len(pair.metric("recent_earthquakes")), 1)
 

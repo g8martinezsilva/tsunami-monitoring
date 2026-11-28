@@ -37,7 +37,8 @@ GOVERNANCE_SCHEMA = (
     "duplicate_rate_pct DOUBLE, silver_topic STRING, schema_rows BIGINT, schema_compliant BIGINT, "
     "schema_compliance_pct DOUBLE, files_checked BIGINT, files_compliant BIGINT, outlier_values BIGINT, "
     "outlier_count BIGINT, outlier_rate_pct DOUBLE, period DATE, volume_rows BIGINT, new_observations BIGINT, "
-    "threshold DOUBLE, status STRING"
+    "threshold DOUBLE, status STRING, q1 DOUBLE, median DOUBLE, q3 DOUBLE, iqr DOUBLE, "
+    "lower_whisker DOUBLE, upper_whisker DOUBLE, outlier_points ARRAY<DOUBLE>"
 )
 STORYTELLING_SCHEMA = (
     "metric STRING, source STRING, year INT, center STRING, magnitude_type STRING, "

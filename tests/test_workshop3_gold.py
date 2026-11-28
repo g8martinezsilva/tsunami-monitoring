@@ -278,7 +278,8 @@ class GoldSparkTests(unittest.TestCase):
                 second = pd.read_parquet(replay[name])
                 self.assertEqual(self.spark.read.parquet(str(path)).count(), len(first))
                 self.assertEqual(self.spark.read.parquet(str(replay[name])).count(), len(first))
+                sort_columns = first.columns.drop("outlier_points", errors="ignore").tolist()
                 pd.testing.assert_frame_equal(
-                    first.sort_values(list(first.columns)).reset_index(drop=True),
-                    second.sort_values(list(second.columns)).reset_index(drop=True),
+                    first.sort_values(sort_columns).reset_index(drop=True),
+                    second.sort_values(sort_columns).reset_index(drop=True),
                 )

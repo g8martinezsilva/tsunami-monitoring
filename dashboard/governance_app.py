@@ -10,7 +10,15 @@ from dashboard import theme
 from dashboard.gold import GoldCache
 
 OBSERVATION_TOPICS = ("earthquakes", "tsunami_events", "tsunami_bulletins")
+SOURCE_NAMES = {
+    "noaa_hazel": "NOAA Historical Tsunami Database",
+    "usgs_fdsn": "USGS Earthquake Catalog (FDSN)",
+    "usgs_realtime": "USGS Real-time Feed",
+    "ntwc": "NTWC — National Tsunami Warning Center",
+    "ptwc": "PTWC — Pacific Tsunami Warning Center",
+}
 STATUS_LABELS = {"warning": "Warning", "review": "Review", "ok": "OK", "expected": "Expected", "n/a": "N/A"}
+QUALITY_COLORS = {**theme.STATUS_COLORS, "warning": "#C2352F"}
 QUALITY_CHECKS = (
     ("null_rate", "Null rate", "null_rate_pct", "field", "≤", "%"),
     ("outlier_rate", "IQR outlier rate", "outlier_rate_pct", "field", "≤", "%"),
@@ -19,8 +27,18 @@ QUALITY_CHECKS = (
     ("pipeline_state", "Watermark age", "watermark_age_hours", None, "≤", " h"),
     ("orchestration", "Run compliance", "run_compliance_pct", "dag_id", "≥", "%"),
 )
+BOX_VARIABLES = {
+    "magnitude": ("Earthquake Magnitude", "Magnitude", "earthquakes"),
+    "depth_km": ("Earthquake Depth", "Depth (km)", "earthquakes"),
+    "max_water_height": ("Maximum Water Height", "Water height (m)", "tsunami_events"),
+    "num_runups": ("Number of Runups", "Runups (count)", "tsunami_events"),
+}
 
 cache = GoldCache(include_storytelling=False)
+
+
+def source_name(source):
+    return SOURCE_NAMES.get(source, source)
 
 
 def percentage(numerator, denominator):
@@ -48,6 +66,8 @@ def common_threshold(rows):
 
 
 def missing_value_kpi(counts, missing):
+    excluded = missing["source"].eq("usgs_fdsn") & missing["field"].eq("tsunami_bulletin_flag")
+    missing = missing.loc[~excluded.fillna(False)]
     # Gold checks every observation for each field. Source identifies its observation topic
     # in this catalog. A repeated source across topics would make the denominator ambiguous.
     by_source = counts.drop_duplicates("source", keep=False).set_index("source")["unique_observations"]
@@ -55,9 +75,9 @@ def missing_value_kpi(counts, missing):
     total = evaluated.sum(min_count=1)
     if pd.notna(total) and total > 0 and evaluated.notna().all() and missing["null_count"].notna().all():
         return "Overall Null Rate", percentage(missing["null_count"].sum(), total), (
-            f"{theme.fmt(missing['null_count'].sum())} missing of {theme.fmt(total)} field values, including expected gaps"
+            f"{theme.fmt(missing['null_count'].sum())} missing of {theme.fmt(total)} field values."
         )
-    return "Mean Field Null Rate", missing["null_rate_pct"].mean(), "Unweighted mean across fields and sources"
+    return "Mean Field Null Rate", missing["null_rate_pct"].mean(), f"Unweighted mean across fields and sources."
 
 
 def kpi_cards(pair):
@@ -94,28 +114,27 @@ def field_rates(rows, title, column, axis, counts):
 
     rows["category"] = rows["field"] + " · " + rows["source"]
     rows["label"] = [
-        field.replace("_", " ") + "<br>" + theme.source_name(source)
-        + (f" · {STATUS_LABELS[status]}" if status in {"expected", "warning", "review"} else "")
+        field.replace("_", " ") + (f" · {STATUS_LABELS[status]}" if status in {"expected", "warning", "review"} else "")
+        + "<br>" + source_name(source)
         for field, source, status in rows[["field", "source", "status"]].fillna("").itertuples(index=False, name=None)
     ]
     figure = go.Figure()
-    for source, group in rows.groupby("source", sort=False):
+    for status, group in rows.groupby(rows["status"].fillna(""), sort=False):
+        label = STATUS_LABELS.get(status, "Status unavailable")
+        color = QUALITY_COLORS.get(status, theme.GREY)
+        if column == "outlier_rate_pct" and status == "review":
+            color = "#F4D03F"
         hover = [
-            "<br>".join([f"{theme.source_name(source)} · {row['field']}",
-                         *(f"{label}: {theme.fmt(row[key])}" for key, label in counts),
-                         f"Status: {STATUS_LABELS.get(row['status'], '—')}",
+            "<br>".join([f"{source_name(row['source'])} · {row['field']}",
+                         *(f"{name}: {theme.fmt(row[key])}" for key, name in counts),
+                         f"Status: {label}",
                          f"Threshold: {rate(row['threshold'])}"])
             for row in group.to_dict("records")
         ]
-        color = theme.SOURCE_COLORS.get(source, theme.GREY)
-        states = group["status"].fillna("")
         figure.add_bar(
-            name=theme.source_name(source), x=group[column].astype(float), y=group["category"], orientation="h",
-            marker={"color": [theme.STATUS_COLORS["expected"] if status == "expected" else color for status in states],
-                    "line": {"color": [theme.STATUS_COLORS[status] if status in {"warning", "review"} else color
-                                       for status in states],
-                             "width": [2 if status in {"warning", "review"} else 0 for status in states]},
-                    "pattern": {"shape": ["/" if status == "expected" else "" for status in states]}},
+            name=label, x=group[column].astype(float), y=group["category"], orientation="h",
+            marker={"color": color,
+                    "pattern": {"shape": "/" if status == "expected" else ""}},
             width=0.56,
             text=group[column].map(rate), textposition="outside", cliponaxis=False,
             hovertext=hover, hovertemplate="%{hovertext}<br>%{x:.2f}%<extra></extra>",
@@ -132,8 +151,11 @@ def field_rates(rows, title, column, axis, counts):
                         tickmode="array", tickvals=rows["category"].tolist(), ticktext=rows["label"].tolist(),
                         automargin=True, ticklabelstandoff=4, tickfont={"size": 11})
     figure.update_xaxes(ticksuffix="%", range=[0, max(upper * 1.08, 1)], automargin=True)
-    theme.style(figure, title, x=axis, legend=False, height=max(295, 100 + 32 * len(rows)))
-    return figure.update_layout(barmode="overlay", margin={"l": 8, "r": 50, "t": 48, "b": 50})
+    theme.style(figure, title, x=axis, height=max(330, 146 + 32 * len(rows)))
+    return figure.update_layout(barmode="overlay", margin={"l": 8, "r": 50, "t": 48, "b": 96},
+                                legend={"x": 0.5, "xref": "container", "xanchor": "center",
+                                        "y": 0, "yref": "container", "yanchor": "bottom",
+                                        "font": {"size": 11}})
 
 
 def daily_volume_chart(rows):
@@ -146,7 +168,7 @@ def daily_volume_chart(rows):
     for source, group in rows.groupby("source", sort=False):
         color = theme.SOURCE_COLORS.get(source, theme.GREY)
         trend.add_scatter(
-            name=theme.source_name(source), x=group["period"].astype(str), y=group["volume_rows"].astype(float),
+            name=source_name(source), x=group["period"].astype(str), y=group["volume_rows"].astype(float),
             mode="lines+markers" if group["period"].nunique() > 1 else "markers",
             line={"color": color}, marker={"color": color, "size": 8},
             customdata=group["new_observations"].map(theme.fmt).tolist(),
@@ -168,9 +190,11 @@ def source_charts(pair, source):
         return frame.loc[frame["source"].eq(source)] if source else frame
 
     missing = rows("null_rate")
+    excluded = missing["source"].eq("usgs_fdsn") & missing["field"].eq("tsunami_bulletin_flag")
+    missing = missing.loc[~excluded.fillna(False)]
     positive = missing.loc[missing["null_count"].gt(0)]
     missing_chart = (
-        theme.empty_figure("Missing Values by Field and Source", "No missing values for the selected sources.")
+        theme.empty_figure("Missing Values by Field and Source", "No missing values detected in the evaluated fields.")
         if positive.empty and missing["null_count"].notna().any()
         else field_rates(positive, "Missing Values by Field and Source", "null_rate_pct", "Missing values (%)",
                          (("null_count", "Missing values"),))
@@ -178,6 +202,45 @@ def source_charts(pair, source):
     outliers = field_rates(rows("outlier_rate"), "Outlier Rates by Field and Source", "outlier_rate_pct",
                            "IQR outliers (%)", (("outlier_count", "Outliers"), ("outlier_values", "Evaluated values")))
     return missing_chart, daily_volume_chart(rows("volume")), outliers
+
+
+def distribution_box_plot(pair, source, field):
+    title = "Distribution and Outliers by Source"
+    _, axis, topic = BOX_VARIABLES[field]
+    rows = pair.topic("outlier_rate")
+    rows = rows.loc[rows["field"].eq(field) & rows["silver_topic"].eq(topic)]
+    if source:
+        rows = rows.loc[rows["source"].eq(source)]
+    rows = rows.dropna(subset=["q1", "median", "q3", "lower_whisker", "upper_whisker", "outlier_points"])
+    if rows.empty:
+        return theme.empty_figure(title, "Distribution statistics are unavailable for this selection "
+                                  "in the current Gold publication.")
+
+    figure = go.Figure()
+    for row in rows.sort_values("source").itertuples(index=False):
+        name = source_name(row.source)
+        color = theme.SOURCE_COLORS[row.source]
+        figure.add_box(x=[name], q1=[row.q1], median=[row.median], q3=[row.q3],
+                       lowerfence=[row.lower_whisker], upperfence=[row.upper_whisker],
+                       line_color=color, whiskerwidth=0.5, boxpoints=False, hoverinfo="skip")
+        # Plotly uses fixed hover labels on boxes. Mark the median and outliers for the detailed tooltip.
+        points = [row.median, *row.outlier_points]
+        figure.add_scatter(
+            x=[name] * len(points), y=points, mode="markers",
+            marker={"color": color, "size": 7, "symbol": ["diamond-open"] + ["circle"] * len(row.outlier_points)},
+            text=["Median"] + ["Outlier"] * len(row.outlier_points),
+            hovertemplate=(
+                f"Source: {name}<br>Evaluated observations: {theme.fmt(row.outlier_values)}<br>"
+                f"Q1: {theme.fmt(row.q1, 2)}<br>Median: {theme.fmt(row.median, 2)}<br>"
+                f"Q3: {theme.fmt(row.q3, 2)}<br>IQR: {theme.fmt(row.iqr, 2)}<br>"
+                f"Outlier count: {theme.fmt(row.outlier_count)}<br>Outlier rate: {rate(row.outlier_rate_pct)}"
+                "<br>%{text}: %{y}<extra></extra>"
+            ),
+        )
+    theme.style(figure, title, y=axis, legend=False)
+    figure.update_xaxes(automargin=True)
+    figure.update_yaxes(automargin=True)
+    return figure.update_layout(hovermode="closest", margin={"t": 16})
 
 
 def table(columns, rows, empty="Indicator unavailable in this Gold publication."):
@@ -190,6 +253,14 @@ def table(columns, rows, empty="Indicator unavailable in this Gold publication."
     )
 
 
+def unique_observations_table(pair):
+    counts = observations(pair).groupby("source")["unique_observations"].sum(min_count=1)
+    counts = counts.sort_values(ascending=False)
+    rows = [(source_name(source), theme.fmt(count)) for source, count in counts.items()]
+    rows.append((html.Strong("Total"), html.Strong(theme.fmt(counts.sum(min_count=1)))))
+    return table(("Source", "Unique Observations"), rows)
+
+
 def quality_summary(pair):
     order = {status: i for i, status in enumerate(STATUS_LABELS)}
     checks = []
@@ -197,11 +268,11 @@ def quality_summary(pair):
         for row in pair.topic(topic).itertuples(index=False):
             target = f"{bound} {row.threshold:g}{unit}" if pd.notna(row.threshold) else "—"
             context = getattr(row, detail) if detail else None
-            checks.append((row.status, label, theme.source_name(row.source) if pd.notna(row.source) else "—",
+            checks.append((row.status, label, source_name(row.source) if pd.notna(row.source) else "—",
                            context if pd.notna(context) else "—",
                            theme.fmt(getattr(row, value), 2, unit), target))
     for row in observations(pair).dropna(subset=["duplicate_rate_pct"]).itertuples(index=False):
-        checks.append((None, "Duplicate rate", theme.source_name(row.source), row.topic,
+        checks.append((None, "Duplicate rate", source_name(row.source), row.topic,
                        rate(row.duplicate_rate_pct), "—"))
 
     checks.sort(key=lambda row: order.get(row[0], len(order)))
@@ -230,7 +301,7 @@ def pipeline_health(pair):
     successful = pipeline["load_runs_window"] - pipeline["failed_load_runs_window"]
     pipeline_table = table(
         ("Source", "Last Success (UTC)", "Watermark (UTC)"),
-        [([html.Div(theme.source_name(row.source)), status_badge(row.status)],
+        [([html.Div(source_name(row.source)), status_badge(row.status)],
           [html.Div(utc_time(row.last_successful_run_at)),
            html.Small(f"{theme.fmt(successes)} OK / {theme.fmt(row.failed_load_runs_window)} failed",
                       className="text-muted")],
@@ -246,13 +317,13 @@ def pipeline_health(pair):
     )
     rejection_table = table(
         ("Source", "Rejected", "Unique Rejections"),
-        [(theme.source_name(row.source), theme.fmt(row.rejected_records), theme.fmt(row.unique_rejected_records))
+        [(source_name(row.source), theme.fmt(row.rejected_records), theme.fmt(row.unique_rejected_records))
          for row in rejected.itertuples(index=False)],
         "No rejection rows in this Gold publication.",
     )
     match_table = table(
         ("Source / Relation", "Eligible", "Accepted", "Pending", "Coverage"),
-        [([html.Div(theme.source_name(row.source)), html.Small(row.relation_type, className="text-muted")],
+        [([html.Div(source_name(row.source)), html.Small(row.relation_type, className="text-muted")],
           theme.fmt(row.eligible), theme.fmt(row.accepted_links),
           theme.fmt(row.pending_links), rate(row.coverage_pct)) for row in matching.itertuples(index=False)],
     )
@@ -275,25 +346,32 @@ def pipeline_health(pair):
 
 
 def graph(figure):
+    height = f"{figure.layout.height}px"
+    if not figure.data:
+        return html.Div(figure.layout.annotations[0].text, role="status",
+                        className="d-flex align-items-center justify-content-center text-center text-muted p-3",
+                        style={"minHeight": height})
     # Responsive Graph clears Plotly's layout height. Give its container the planned height.
     return dcc.Graph(figure=figure.update_layout(title_text=None), responsive=True,
-                     style={"height": f"{figure.layout.height}px", "minWidth": 0},
+                     style={"height": height, "minWidth": 0},
                      config={"displaylogo": False, "modeBarButtons": [["zoom2d", "resetScale2d"]]})
 
 
-def chart_card(graph_id, figure, provenance, note=None):
+def chart_card(graph_id, figure, provenance, note=None, *, controls=None, footer=None):
     return dbc.Card(dbc.CardBody([
         html.H3(figure.layout.title.text, className="h5 mb-2"),
+        controls,
         html.Div(graph(figure), id=graph_id),
         html.Div(note, className="small text-muted") if note else None,
         theme.source_note(f"Gold Governance · {provenance}"),
+        footer,
     ]), className="h-100")
 
 
 def source_options(pair):
-    sources = sorted(pair.governance["source"].dropna().unique(), key=theme.source_name)
+    sources = sorted(pair.governance["source"].dropna().unique(), key=source_name)
     return [{"label": "All Sources", "value": ""}, *[
-        {"label": theme.source_name(source), "value": source} for source in sources
+        {"label": source_name(source), "value": source} for source in sources
     ]]
 
 
@@ -308,15 +386,33 @@ def layout():
             dbc.Col(html.Label("Chart source", htmlFor="source-filter", className="fw-bold"), width="auto"),
             dbc.Col(dcc.Dropdown(id="source-filter", options=source_options(pair), value="", clearable=False),
                     xs=12, sm=6, md=4, lg=3),
-            dbc.Col(html.Small("Filters the three charts.", className="text-muted"),
+            dbc.Col(html.Small("Filters the charts.", className="text-muted"),
                     xs=12, md=True),
         ], className="g-2 align-items-center mb-3"),
         dbc.Row([
             dbc.Col(chart_card("missing-values", missing, "null_rate",
                                "Only fields with missing values are shown. Hatching marks expected gaps."), lg=5, xs=12),
             dbc.Col(chart_card("ingestion-trend", trend, "volume",
-                               "Hover over a capture day to see processed rows and new observations."), lg=7, xs=12),
+                               "Hover over a capture day to see processed rows and new observations.",
+                               footer=html.Div([
+                                   html.H4("Unique Observations by Source", className="h6 mb-1"),
+                                   html.Div(unique_observations_table(pair), id="unique-observations-by-source"),
+                                   html.Small("The table counts distinct observations across the Gold publication. "
+                                              "The chart shows rows processed per capture day.",
+                                              className="d-block text-muted mt-1"),
+                               ], className="border-top mt-2 pt-2")), lg=7, xs=12),
         ], className="g-3 mb-3"),
+        dbc.Row(dbc.Col(chart_card(
+            "distribution-box-plot", distribution_box_plot(pair, "", "magnitude"), "outlier_rate",
+            "Outliers represent statistically unusual observations and may correspond to real natural events.",
+            controls=dbc.Row([
+                dbc.Col(html.Label("Variable", htmlFor="box-variable", className="fw-bold"), width="auto"),
+                dbc.Col(dcc.Dropdown(
+                    id="box-variable", value="magnitude", clearable=False,
+                    options=[{"label": label, "value": field} for field, (label, _, _) in BOX_VARIABLES.items()],
+                ), xs=12, sm=6, lg=4),
+            ], className="g-2 align-items-center mb-2"),
+        )), className="g-3 mb-3"),
         dbc.Row([
             dbc.Col(chart_card("outlier-rates", outliers, "outlier_rate",
                                "The IQR rule identifies unusual values, including real natural events."),
@@ -348,6 +444,7 @@ app.index_string = app.index_string.replace("</head>", """<style>
     .quality-scroll th:nth-child(n+4),
     .quality-scroll td:nth-child(n+4) { white-space: nowrap; }
     .pipeline-scroll { max-height: 484px; overflow-y: auto; }
+    .pipeline-scroll > .table-responsive:first-of-type .table { table-layout: fixed; }
     .status-badge { display: inline-block; border-left: 4px solid var(--status-color);
                     border-radius: .25rem; padding: .15rem .4rem; background: #f3f5f7;
                     font-weight: 600; font-size: .75rem; white-space: nowrap; }
@@ -360,6 +457,7 @@ app.layout = layout
     Output("missing-values", "children"), Output("ingestion-trend", "children"), Output("outlier-rates", "children"),
     Output("gold-label", "children"), Output("kpis", "children"), Output("source-filter", "options"),
     Output("quality-summary", "children"), Output("pipeline-health", "children"), Output("gold-stamp", "data"),
+    Output("unique-observations-by-source", "children"),
     Input("refresh", "n_clicks"), Input("source-filter", "value"), State("gold-stamp", "data"),
     prevent_initial_call=True,
 )
@@ -372,8 +470,18 @@ def update_dashboard(_clicks, source, shown_stamp):
     source = source if any(option["value"] == source for option in options) else ""
     charts = tuple(graph(figure) for figure in source_charts(pair, source))
     if not changed:
-        return charts + (no_update,) * 6
-    return (*charts, pair.label, kpi_cards(pair), options, quality_summary(pair), pipeline_health(pair), pair.stamp)
+        return charts + (no_update,) * 7
+    return (*charts, pair.label, kpi_cards(pair), options, quality_summary(pair), pipeline_health(pair), pair.stamp,
+            unique_observations_table(pair))
+
+
+@app.callback(
+    Output("distribution-box-plot", "children"),
+    Input("gold-stamp", "data"), Input("source-filter", "value"), Input("box-variable", "value"),
+    prevent_initial_call=True,
+)
+def update_distribution(_stamp, source, field):
+    return graph(distribution_box_plot(cache.get(), source, field))
 
 
 if __name__ == "__main__":

@@ -106,6 +106,21 @@ class GoldDashboardTests(unittest.TestCase):
         self.assertEqual((fdsn.outlier_values, fdsn.outlier_count), (17, 1))  # 6.1 below a constant 6.5
         self.assertEqual(gov.loc[("usgs_realtime", "depth_km"), "outlier_values"], 4)  # null depth skipped
 
+    def test_box_plot_uses_observed_whiskers_and_preserves_repeated_outliers(self):
+        values = [-20, -20, 1, 3, 3, 3, 4, 4, 5, 5, 5, 5, 6, 8, 30, 30, None, float("nan")]
+        frame = self.spark.createDataFrame(
+            [("usgs_fdsn", float(value) if value is not None else None) for value in values],
+            "source STRING, depth_km DOUBLE",
+        )
+        parts = self.gd.outlier_rates({"earthquakes": frame}, SETTINGS)
+        governance = self.gold._union(self.spark.createDataFrame([], self.gold.GOVERNANCE_SCHEMA), parts)
+        row = self.gd.apply_thresholds(governance, SETTINGS).first()
+        self.assertEqual((row.q1, row.median, row.q3, row.iqr), (3.0, 4.0, 5.0, 2.0))
+        self.assertEqual((row.lower_whisker, row.upper_whisker), (1.0, 8.0))  # IQR limits are 0 and 8
+        self.assertEqual(row.outlier_points, [-20.0, -20.0, 30.0, 30.0])
+        self.assertEqual((row.outlier_values, row.outlier_count, row.outlier_rate_pct), (16, len(row.outlier_points), 25.0))
+        self.assertEqual((row.threshold, row.status), (10.0, "review"))
+
     def test_volume_counts_rows_and_first_captures_per_day(self):
         gov = self.frame(self.gd.volume_over_time(self.raw, self.gold.snapshot_timestamp))
         day = gov[(gov["source"] == "usgs_realtime") & (gov["period"] == date(2026, 11, 26))].iloc[0]
