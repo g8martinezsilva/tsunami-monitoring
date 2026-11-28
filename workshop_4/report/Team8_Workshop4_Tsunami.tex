@@ -163,8 +163,9 @@
     % -------------------------------------------------------------------
     \chapter*{Abstract}
     \addcontentsline{toc}{chapter}{Abstract}
-    % TODO (Executive Summary): both dashboards, integration status, key visualization decisions.
-    \textit{To be written.}
+Workshop~4 turns the medallion pipeline of the Team~8 tsunami monitoring system into two independent Plotly Dash applications that read only the Gold Parquet files. The governance dashboard (port 8050) serves the data team: it reports completeness, duplicate, schema-compliance and outlier rates, daily ingestion volume, box plots, a quality table with targets, and the freshness and run history of the pipeline. The storytelling dashboard (port 8051) serves the Pacific monitoring analyst defined in Workshop~1: a plain-language summary, the recent earthquakes on a Pacific-centred map with their Tsunami Relevance Level, official bulletins, earthquakes per day, the last 30 days against the 2010--2025 rate, and the historical record.
+
+To feed them, Gold gained duplicate, schema-compliance and outlier rates with box-plot statistics, daily volume, a threshold and status for every indicator, and a historical-versus-current comparison that uses the same magnitude threshold and area on both sides. A clean run from Bronze to Gold on one machine produced the publication \texttt{20261128\_040949}, committed as a sample so that both dashboards show the same numbers on any computer. In that publication the 2,641 observations meet the Silver schema in full, the overall null rate is 1.42\%, and the 12 strong earthquakes of the last 30 days are within the usual rate (about 9.9 expected). Both applications start with one command, locally or with Docker Compose. The relevance level remains a monitoring aid, never a tsunami prediction.
 
     % -------------------------------------------------------------------
     % Contents, list of figures, list of tables, abbreviations
@@ -199,12 +200,14 @@
     \mainmatter
 
 \chapter{Introduction}
-% TODO: Workshop 4 scope. Course: temporal and geographic analysis, historical-versus-current comparison,
-% hazard indicator and dashboard. Guide (2026-I edition): two Plotly Dash apps reading only Gold.
-% State once that the guide's sentiment components are replaced by tsunami equivalents (table).
-\textit{To be written.}
+Workshop~4 of the 2026-II course covers temporal and geographic analysis, the historical-versus-current comparison, the hazard indicator and the monitoring dashboard \cite{courseproject,teamassignment}. The Workshop~4 guide available to the team belongs to the 2026-I edition: it asks for two Plotly Dash applications, one for governance and one for storytelling, that read only the Gold layer, and it describes the storytelling components in terms of sentiment analysis \cite{dash}. The team follows the structure of that guide and fills it with the course scope for this hazard. Each sentiment component is replaced by its tsunami equivalent (\cref{tab:story-components}): the sentiment distribution becomes the relevance-level cards, the sentiment trend becomes the comparison of the last 30 days with the 2010--2025 rate, the keyword chart becomes the regions with the most strong earthquakes, and the volume chart becomes the earthquakes per day.
+
+The functional user is the monitoring analyst of a coastal emergency-management office described in Workshop~1, who knows magnitude and depth but is not a seismologist \cite{workshop1}. The governance dashboard is written for the data team and keeps the technical terms; the storytelling dashboard avoids them. Both applications read the newest complete Gold pair, and the report uses the committed publication \texttt{20261128\_040949} throughout, so that every figure and number comes from the same run (\cref{ch:evidence}).
+
+\Cref{ch:integration} describes the changes to Gold and the end-to-end run. \Cref{ch:governance-dashboard,ch:storytelling-dashboard} document the two applications, \cref{ch:design} the visual decisions, \cref{ch:evidence} the evidence of execution, and the last two chapters the challenges and conclusions.
 
 \chapter{Integration Adjustments}
+\label{ch:integration}
 % Guide: pipeline or Gold corrections made in this workshop, separate from the Workshop 3 improvements
 % (new governance KPIs, historical-versus-current metric, thresholds), and the end-to-end run.
 \section{Gold Layer Additions}
@@ -233,6 +236,7 @@ Gold uses the same evaluated observations for the outlier rate and the box plot.
 
 The historical-versus-current comparison uses the same magnitude threshold and the same Pacific query area on both sides, because the real-time feed starts at $M$~4.5 and the catalog at $M$~6. Its probability is descriptive: with about one hundred cells, a few small probabilities are expected by chance, so the dashboard ranks cells instead of declaring any of them anomalous. It is not a forecast.
 \section{End-to-End Pipeline Run}
+\label{sec:e2e-run}
 The clean-environment Airflow captures span 27--28 November 2026 in UTC. They show historical Bronze ingestion followed by Silver processing. The later captures record incremental ingestion, USGS FDSN reconciliation, further Silver runs and Gold processing. The sequence and the published Parquet pair demonstrate continuity from ingestion to the datasets consumed by the dashboards.
 
 \Cref{fig:complete-pipeline} shows the five DAGs at 00:06 UTC on 28 November, with one execution still in progress. \Cref{tab:pipeline-snapshot} reports the success counters separately for DAG runs and the recent tasks displayed by Airflow.
@@ -265,6 +269,7 @@ The three complementary captures show the historical Bronze load, the first succ
 \end{sidewaysfigure}
 
 \chapter{Governance Dashboard}
+\label{ch:governance-dashboard}
 \section{Layout}
 The Governance application runs on port 8050 and reads the Governance Parquet from the selected Gold pair. The header identifies the publication time and provides a refresh control. Four KPI cards summarize the publication. The next row pairs the missing-value chart with the volume chart and its source-quality table. Box plots and outlier rates share a row on extra-wide screens. The quality and pipeline-health tables follow, and a full-width matrix closes the page. At narrower widths the cards stack and the diagnostic tables remain scrollable.
 
@@ -272,7 +277,7 @@ The Governance application runs on port 8050 and reads the Governance Parquet fr
 
 \begin{figure}[p]
 \centering
-\includegraphics[width=\textwidth,height=0.89\textheight,keepaspectratio,trim=335bp 10bp 335bp 0,clip]{../evidence/governance/12_governance_full_dashboard.png}
+\includegraphics[width=\textwidth,height=0.89\textheight,keepaspectratio]{../evidence/governance/12_governance_full_dashboard.png}
 \caption[Complete Governance dashboard]{Complete Governance dashboard with the KPI cards, field quality and volume, statistical diagnostics, pipeline health and the source matrix.}
 \label{fig:gov-dashboard}
 \end{figure}
@@ -394,6 +399,7 @@ Chart Source filters the diagnostic charts while keeping the KPI cards, source o
 The real-time feed filter illustrates a measured absence of missing values in the evaluated fields. The box-plot and matrix messages separately identify unavailable statistics and insufficient samples. The remaining screenshots are available as \href{https://github.com/g8martinezsilva/tsunami-monitoring/tree/952dd212e03c214906d968322b04abf6e643426b/workshop_4/evidence/governance}{complementary Governance evidence on GitHub}.
 
 \chapter{Storytelling Dashboard}
+\label{ch:storytelling-dashboard}
 The storytelling dashboard (\path{dashboard/storytelling_app.py}, \texttt{localhost:8051}) is designed for the functional user of Workshop~1, a monitoring analyst in a coastal emergency-management office who knows magnitude and depth but is not a seismologist \cite{workshop1}. It reads only the storytelling Gold dataset. It is a monitoring aid: it neither predicts tsunamis nor replaces the official warning centers.
 
 \section{Layout and Narrative}
@@ -476,6 +482,7 @@ US5 is covered here only by the data timestamp in the header. The last successfu
 \end{itemize}
 
 \chapter{Visualization Design Decisions}
+\label{ch:design}
 Governance arranges information from summary to diagnosis. The chart type follows the reader's task of checking a headline, comparing sources or investigating a quality issue \cite{edaguide}.
 
 \section{Chart Types}
@@ -526,16 +533,47 @@ Chart titles identify the measure, axes show the units, and source notes identif
 
 \chapter{Reproducibility Evidence}
 \label{ch:evidence}
-\Cref{fig:complete-pipeline} documents the Airflow execution, and \cref{fig:gov-dashboard} documents the final Governance interface. The Parquet pair used for the reported values is available in the \href{https://github.com/g8martinezsilva/tsunami-monitoring/tree/2ddcd4b9304bc31b764f940242b26021786fbd2e/datalake_gold/samples}{versioned Gold samples on GitHub}.
+Every number and figure in this report comes from the Gold publication \texttt{20261128\_040949} (04:09:49 UTC on 28 November 2026), produced by the clean pipeline run of \cref{sec:e2e-run}. The Parquet pair used for the reported values is available in the \href{https://github.com/g8martinezsilva/tsunami-monitoring/tree/2ddcd4b9304bc31b764f940242b26021786fbd2e/datalake_gold/samples}{versioned Gold samples on GitHub}. Because both dashboards select the newest complete pair among the local Gold runs and the committed samples, they show this publication on any computer with a fresh clone.
 
-Storytelling evidence, final tests and Docker integration remain pending.
+\section{Pipeline in Airflow}
+\Cref{fig:complete-pipeline} shows the five DAGs in the Airflow UI with their successful runs: the historical Bronze load, the FileSensor-triggered Silver processing, incremental polling, the daily FDSN reconciliation and the Gold DAG.
+
+\section{Dashboards in the Browser}
+\Cref{fig:gov-dashboard} shows the governance dashboard at \texttt{localhost:8050} and \cref{fig:story-dashboard} the storytelling dashboard at \texttt{localhost:8051}, both with the publication time in the header. With the 7-day window, the storytelling page reports 63 earthquakes of magnitude 4.5 or higher in the Pacific area, two of them rated LOW and 61 not rated, none with a linked bulletin, and 12 strong earthquakes in the last 30 days against about 9.9 expected.
+
+\IfFileExists{../evidence/storytelling/01_full_dashboard.png}{%
+\begin{figure}[p]
+\centering
+\includegraphics[width=\textwidth,height=0.89\textheight,keepaspectratio]{../evidence/storytelling/01_full_dashboard.png}
+\caption[Complete storytelling dashboard]{Complete storytelling dashboard with Gold publication \texttt{20261128\_040949} and the 7-day window.}
+\label{fig:story-dashboard}
+\end{figure}}{%
+\begin{figure}[htbp]
+\centering
+\fbox{\parbox{0.8\textwidth}{\centering\vspace{2em}Screenshot pending: \path{workshop_4/evidence/storytelling/01_full_dashboard.png}\vspace{2em}}}
+\caption[Complete storytelling dashboard]{Complete storytelling dashboard.}
+\label{fig:story-dashboard}
+\end{figure}}
+
+\section{Automated Checks}
+The Spark tests in the Airflow image (20 tests) cover the Workshop~3 Gold layer and every Workshop~4 addition: duplicate, schema and outlier rates, box-plot statistics, daily volume, thresholds and statuses, the historical-versus-current comparison and its Poisson probability. The dashboard tests in the project environment (15 tests) cover the selection of the newest complete Gold pair, older pairs without the newer columns, the reserved palette, the time windows, the wording rules of the main message, the order of the bulletin table, and an explanatory message instead of an error when a chart has no data. Both applications were also started with Docker Compose and returned their full layout.
 
 \chapter{Challenges and Resolutions}
-\textit{To be written.}
+\begin{itemize}
+\item \textbf{A guide for another topic.} The Workshop~4 guide describes sentiment components. The team kept its structure and replaced each component with a tsunami equivalent tied to a Workshop~1 user story, stating the replacement in \cref{tab:story-components}.
+\item \textbf{Numbers from different computers.} Each laptop polls the real-time feeds at different times, so Gold differs between machines. The final evidence uses one committed publication, and the dashboards load the newest pair among local runs and samples, so the screenshots and the report agree.
+\item \textbf{Recent events inside the historical baseline.} The daily FDSN reconciliation has no end date and adds 2026 earthquakes to the catalog. Gold now limits the baseline, the level distribution and the validation to 2010--2025, so a recent earthquake is never compared with itself.
+\item \textbf{Comparable windows.} The real-time feed starts at magnitude 4.5 and the catalog at 6. The historical-versus-current comparison uses magnitude 6 and the same area on both sides, and its probability is described as descriptive because about one hundred regions are compared.
+\item \textbf{Colour meaning.} The first palette gave two sources the colours of relevance levels. The final palette reserves the four level colours and extends the Okabe--Ito set for the warning centers.
+\item \textbf{Older Gold publications.} Pairs produced before Workshop~4 lack the new columns. The loader adds them as empty, and each chart then explains that the indicator is not available instead of failing.
+\item \textbf{Few accepted bulletin links.} With the stricter matching rules of Workshop~3, no bulletin in the final publication has an accepted link. The bulletin table says ``None linked'' and reminds the analyst that this does not mean there is no warning.
+\item \textbf{Running in Docker and on limited memory.} Dash listens on 127.0.0.1 locally and on all interfaces inside its container. The dashboards have their own image and a Compose profile, so they do not start with Airflow and can run when the pipeline is stopped on a 7~GB laptop.
+\end{itemize}
 
 \chapter{Conclusions}
-% TODO: conclusions and what remains for the final project.
-\textit{To be written.}
+Workshop~4 completes the path from source responses to two dashboards that read only Gold. The governance dashboard makes the state of the data visible, including what is not healthy: in the final publication, run compliance is low because the environment was new, the real-time watermark is older than its one-hour target, and no bulletin has an accepted link. The storytelling dashboard answers the analyst's questions in order, from what happened in the last day or week to how unusual the last month is and what the 2010--2025 record shows, and it states the limits of the relevance level next to it.
+
+For the final project, the indicator still needs the sensitivity analysis proposed in Workshop~1 (magnitude limits $\pm0.5$, depth 50--100~km, history radius 200--500~km), the pipeline needs a longer continuous run to give the volume and freshness indicators more history, and the bulletin matching rules should be reviewed with real warning messages. The relevance level must remain a monitoring aid: official tsunami warnings come only from the warning centers.
 
     % -------------------------------------------------------------------
     % References
@@ -604,8 +642,21 @@ Accessed 16 November 2026.
     \begin{appendices}
 
 \chapter{Running the Dashboards}
-% TODO: exact commands (Compose and local), ports 8050 and 8051.
-\textit{To be written.}
+From the repository root, with Docker Compose. A plain \texttt{docker compose up} starts only the pipeline; each dashboard starts with its own command:
+\begin{lstlisting}[language=bash,numbers=none]
+docker compose up -d governance-dashboard      # http://localhost:8050
+docker compose up -d storytelling-dashboard    # http://localhost:8051
+docker compose --profile dashboards stop       # stop both
+\end{lstlisting}
+
+Or with the project virtual environment, each in its own terminal:
+\begin{lstlisting}[language=bash,numbers=none]
+pip install -r requirements.txt
+python -m dashboard.governance_app
+python -m dashboard.storytelling_app
+\end{lstlisting}
+
+To show a newer publication, trigger the \path{gold_processing} DAG in Airflow (\texttt{localhost:8080}) and press \emph{Refresh data}. \path{GOLD_DIR} selects another Gold folder.
 
     \end{appendices}
 
