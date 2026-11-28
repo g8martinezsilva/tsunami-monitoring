@@ -136,53 +136,30 @@ def field_rates(rows, title, column, axis, counts):
     return figure.update_layout(barmode="overlay", margin={"l": 8, "r": 50, "t": 48, "b": 50})
 
 
-def daily_volume_charts(rows):
-    bar_title = "Daily Ingestion Volume"
-    trend_title = "Processed Rows Over Time"
+def daily_volume_chart(rows):
+    title = "Processed Rows Over Time"
     rows = rows.dropna(subset=["period", "volume_rows"]).sort_values("period")
     if rows.empty:
-        message = "No dated volume observations for the selected sources."
-        return theme.empty_figure(bar_title, message), theme.empty_figure(trend_title, message)
+        return theme.empty_figure(title, "No dated volume observations for the selected sources.")
 
-    bars, trend = go.Figure(), go.Figure()
+    trend = go.Figure()
     for source, group in rows.groupby("source", sort=False):
-        name = theme.source_name(source)
         color = theme.SOURCE_COLORS.get(source, theme.GREY)
-        for column, label, pattern in (("volume_rows", "Processed rows", ""),
-                                       ("new_observations", "New observations", "/")):
-            values = group.dropna(subset=[column])
-            if values.empty:
-                continue
-            bars.add_bar(
-                name=name, x=values["period"].astype(str), y=values[column].astype(float),
-                legendgroup=source, showlegend=column == "volume_rows",
-                marker={"color": color, "pattern": {"shape": pattern}},
-                hovertemplate=f"%{{x}}<br>{label}: %{{y:,.0f}}<extra>%{{fullData.name}}</extra>",
-            )
         trend.add_scatter(
-            name=name, x=group["period"].astype(str), y=group["volume_rows"].astype(float),
+            name=theme.source_name(source), x=group["period"].astype(str), y=group["volume_rows"].astype(float),
             mode="lines+markers" if group["period"].nunique() > 1 else "markers",
             line={"color": color}, marker={"color": color, "size": 8},
-            hovertemplate="%{y:,.0f} rows<extra>%{fullData.name}</extra>",
+            customdata=group["new_observations"].map(theme.fmt).tolist(),
+            hovertemplate="Processed rows: %{y:,.0f}<br>New observations: %{customdata}<extra>%{fullData.name}</extra>",
         )
 
-    for figure, title, axis in ((bars, bar_title, "Observations (count)"),
-                                (trend, trend_title, "Processed rows (log scale)")):
-        theme.style(figure, title, x="Capture day (UTC)", y=axis, height=415)
-        figure.update_layout(margin={"l": 50, "r": 8, "t": 32, "b": 116},
-                             legend={"yanchor": "top", "y": -0.23, "font": {"size": 11}})
-        figure.update_xaxes(automargin=True)
-        figure.update_yaxes(automargin=True)
-
+    theme.style(trend, title, x="Capture day (UTC)", y="Processed rows (log scale)", height=415)
     dates = rows["period"].astype(str).unique().tolist()
-    bars.update_xaxes(type="category", categoryorder="array", categoryarray=dates)
-    bars.update_yaxes(rangemode="tozero")
-    bars.update_layout(barmode="group", hovermode="x")
     trend.update_xaxes(type="date", tickformat="%Y-%m-%d", tickvals=dates if len(dates) <= 5 else None,
-                       ticklabeloverflow="allow")
-    trend.update_yaxes(type="log", dtick=1)
-    trend.update_layout(hovermode="x unified", margin={"r": 36})
-    return bars, trend
+                       ticklabeloverflow="allow", automargin=True)
+    trend.update_yaxes(type="log", dtick=1, automargin=True)
+    return trend.update_layout(hovermode="x unified", margin={"l": 50, "r": 36, "t": 32, "b": 116},
+                               legend={"yanchor": "top", "y": -0.23, "font": {"size": 11}})
 
 
 def source_charts(pair, source):
@@ -200,8 +177,7 @@ def source_charts(pair, source):
     )
     outliers = field_rates(rows("outlier_rate"), "Outlier Rates by Field and Source", "outlier_rate_pct",
                            "IQR outliers (%)", (("outlier_count", "Outliers"), ("outlier_values", "Evaluated values")))
-    bars, trend = daily_volume_charts(rows("volume"))
-    return missing_chart, bars, trend, outliers
+    return missing_chart, daily_volume_chart(rows("volume")), outliers
 
 
 def table(columns, rows, empty="Indicator unavailable in this Gold publication."):
@@ -253,42 +229,49 @@ def pipeline_health(pair):
     # are invisible to Gold. Subtract recorded failures from the load count in its window.
     successful = pipeline["load_runs_window"] - pipeline["failed_load_runs_window"]
     pipeline_table = table(
-        ("Source", "Last Successful Load (UTC)", "Watermark (UTC)", "Loads (OK / Failed)", "Status"),
-        [(theme.source_name(row.source), utc_time(row.last_successful_run_at),
+        ("Source", "Last Success (UTC)", "Watermark (UTC)"),
+        [([html.Div(theme.source_name(row.source)), status_badge(row.status)],
+          [html.Div(utc_time(row.last_successful_run_at)),
+           html.Small(f"{theme.fmt(successes)} OK / {theme.fmt(row.failed_load_runs_window)} failed",
+                      className="text-muted")],
           [html.Div(utc_time(row.watermark_at)),
            html.Small(f"{theme.fmt(row.watermark_age_hours, 2)} h old", className="text-muted")
-           if pd.notna(row.watermark_age_hours) else None],
-          f"{theme.fmt(successes)} / {theme.fmt(row.failed_load_runs_window)}",
-          status_badge(row.status)) for row, successes in zip(pipeline.itertuples(index=False), successful)],
+           if pd.notna(row.watermark_age_hours) else None])
+         for row, successes in zip(pipeline.itertuples(index=False), successful)],
     )
     run_table = table(
-        ("DAG", "Successful", "Failed", "Expected", "Compliance"),
+        ("DAG", "OK", "Failed", "Expected", "Compliance"),
         [(row.dag_id, theme.fmt(row.successful_dag_runs), theme.fmt(row.failed_dag_runs),
           theme.fmt(row.expected_dag_runs), rate(row.run_compliance_pct)) for row in orchestration.itertuples(index=False)],
     )
     rejection_table = table(
-        ("Source", "Rejected Records", "Unique Rejections"),
+        ("Source", "Rejected", "Unique Rejections"),
         [(theme.source_name(row.source), theme.fmt(row.rejected_records), theme.fmt(row.unique_rejected_records))
          for row in rejected.itertuples(index=False)],
         "No rejection rows in this Gold publication.",
     )
     match_table = table(
-        ("Source", "Relation", "Eligible", "Accepted", "Pending", "Coverage"),
-        [(theme.source_name(row.source), row.relation_type, theme.fmt(row.eligible), theme.fmt(row.accepted_links),
+        ("Source / Relation", "Eligible", "Accepted", "Pending", "Coverage"),
+        [([html.Div(theme.source_name(row.source)), html.Small(row.relation_type, className="text-muted")],
+          theme.fmt(row.eligible), theme.fmt(row.accepted_links),
           theme.fmt(row.pending_links), rate(row.coverage_pct)) for row in matching.itertuples(index=False)],
     )
-    return panel("Pipeline Health", dbc.Row([
-        dbc.Col([html.H4("Source Freshness and Loads", className="h6 mb-2"), pipeline_table,
-                 html.Small("Watermark age is measured at publication. Counts use the Gold reporting window.",
-                            className="text-muted")], lg=7, xs=12),
-        dbc.Col([html.H4("Airflow Runs", className="h6 mb-2"), run_table,
-                 html.Small("A newly initialized environment can have low run compliance with zero failed runs.",
-                            className="text-muted")], lg=5, xs=12),
-        dbc.Col([html.H4("Matching Coverage", className="h6 mb-2"), match_table,
-                 html.Small("Counts refer to eligible observations with accepted or pending-only links.",
-                            className="text-muted")], lg=7, xs=12),
-        dbc.Col([html.H4("Rejected Records", className="h6 mb-2"), rejection_table], lg=5, xs=12),
-    ], className="g-3"), "Source: Gold Governance")
+    return panel("Pipeline Health", html.Div([
+        html.H4("Source Freshness and Loads", className="h6 mb-2"),
+        pipeline_table,
+        html.Small("Watermark age is measured at publication. Counts use the Gold reporting window.",
+                   className="text-muted"),
+        html.H4("Airflow Runs", className="h6 mt-3 mb-2"),
+        run_table,
+        html.Small("A newly initialized environment can have low run compliance with zero failed runs.",
+                   className="text-muted"),
+        html.H4("Matching Coverage", className="h6 mt-3 mb-2"),
+        match_table,
+        html.Small("Counts refer to eligible observations with accepted or pending-only links.",
+                   className="text-muted"),
+        html.H4("Rejected Records", className="h6 mt-3 mb-2"),
+        rejection_table,
+    ], className="pipeline-scroll"), "Source: Gold Governance")
 
 
 def graph(figure):
@@ -316,7 +299,7 @@ def source_options(pair):
 
 def layout():
     pair = cache.get()
-    missing, volume, trend, outliers = source_charts(pair, "")
+    missing, trend, outliers = source_charts(pair, "")
     return html.Main(dbc.Container([
         html.Header(theme.header("Data Governance Dashboard", "", pair), className="governance-heading"),
         dcc.Store(id="gold-stamp", data=pair.stamp),
@@ -325,22 +308,23 @@ def layout():
             dbc.Col(html.Label("Chart source", htmlFor="source-filter", className="fw-bold"), width="auto"),
             dbc.Col(dcc.Dropdown(id="source-filter", options=source_options(pair), value="", clearable=False),
                     xs=12, sm=6, md=4, lg=3),
-            dbc.Col(html.Small("Filters the four charts.", className="text-muted"),
+            dbc.Col(html.Small("Filters the three charts.", className="text-muted"),
                     xs=12, md=True),
         ], className="g-2 align-items-center mb-3"),
         dbc.Row([
-            dbc.Col(chart_card("ingestion-volume", volume, "volume",
-                               "Solid bars show processed rows. Hatched bars show new observations."), lg=6, xs=12),
-            dbc.Col(chart_card("ingestion-trend", trend, "volume",
-                               "Each marker represents a recorded capture day."), lg=6, xs=12),
             dbc.Col(chart_card("missing-values", missing, "null_rate",
-                               "Only fields with missing values are shown. Hatching marks expected gaps."), lg=6, xs=12),
+                               "Only fields with missing values are shown. Hatching marks expected gaps."), lg=5, xs=12),
+            dbc.Col(chart_card("ingestion-trend", trend, "volume",
+                               "Hover over a capture day to see processed rows and new observations."), lg=7, xs=12),
+        ], className="g-3 mb-3"),
+        dbc.Row([
             dbc.Col(chart_card("outlier-rates", outliers, "outlier_rate",
-                               "The IQR rule identifies unusual values, including real natural events."), lg=6, xs=12),
+                               "The IQR rule identifies unusual values, including real natural events."),
+                    xl=4, lg=6, xs=12),
             dbc.Col(panel("Data Quality Summary", html.Div(id="quality-summary", children=quality_summary(pair),
-                                                           className="quality-scroll")), xs=12),
-        ], className="g-3"),
-        html.Section(pipeline_health(pair), id="pipeline-health", className="mt-3 mb-4"),
+                                                           className="quality-scroll")), xl=5, lg=6, xs=12),
+            dbc.Col(html.Section(pipeline_health(pair), id="pipeline-health", className="h-100"), xl=3, xs=12),
+        ], className="g-3 mb-4"),
     ], fluid=True, className="governance px-3 px-lg-4"), className="bg-light min-vh-100")
 
 
@@ -363,6 +347,7 @@ app.index_string = app.index_string.replace("</head>", """<style>
     .quality-scroll th { position: sticky; top: 0; background: white; z-index: 1; }
     .quality-scroll th:nth-child(n+4),
     .quality-scroll td:nth-child(n+4) { white-space: nowrap; }
+    .pipeline-scroll { max-height: 484px; overflow-y: auto; }
     .status-badge { display: inline-block; border-left: 4px solid var(--status-color);
                     border-radius: .25rem; padding: .15rem .4rem; background: #f3f5f7;
                     font-weight: 600; font-size: .75rem; white-space: nowrap; }
@@ -372,8 +357,7 @@ app.layout = layout
 
 
 @app.callback(
-    Output("missing-values", "children"), Output("ingestion-volume", "children"), Output("ingestion-trend", "children"),
-    Output("outlier-rates", "children"),
+    Output("missing-values", "children"), Output("ingestion-trend", "children"), Output("outlier-rates", "children"),
     Output("gold-label", "children"), Output("kpis", "children"), Output("source-filter", "options"),
     Output("quality-summary", "children"), Output("pipeline-health", "children"), Output("gold-stamp", "data"),
     Input("refresh", "n_clicks"), Input("source-filter", "value"), State("gold-stamp", "data"),
