@@ -555,6 +555,26 @@ Every number and figure in this report comes from the Gold publication \texttt{2
 \label{fig:story-dashboard}
 \end{figure}}
 
+\subsection{End-to-End Dashboard Refresh Validation}
+With both dashboards running, the team executed \path{incremental_ingestion}, \path{silver_processing} and \path{gold_processing} in sequence, then selected \emph{Refresh Data} in each application. Both headers displayed the new Gold publication of 28 November 2026 at 14:49 UTC, and the indicators and visualizations updated in the same running sessions.
+
+Governance's unique observation count rose from 2,641 to 2,652. Storytelling's seven-day earthquake count rose from 63 to 67. \Cref{fig:governance-refresh,fig:storytelling-refresh} show the refreshed dashboards. This follow-up test validates the refresh workflow. Gold publication \texttt{20261128\_040949} remains the reference for the report's analytical results.
+
+\begin{sidewaysfigure}
+\centering
+\includegraphics[width=\textheight]{../evidence/refresh/01_governance_refresh.png}
+\caption[Governance after Refresh Data]{Governance after Refresh Data, showing the new publication time, updated KPI cards and processed volume by capture day.}
+\label{fig:governance-refresh}
+\end{sidewaysfigure}
+
+\begin{sidewaysfigure}
+\centering
+\includegraphics[width=\textheight]{../evidence/refresh/02_storytelling_refresh.png}
+\caption[Storytelling after Refresh Data]{Storytelling after Refresh Data, showing the new publication time, updated seven-day summary and earthquake map.}
+\label{fig:storytelling-refresh}
+\end{sidewaysfigure}
+
+\clearpage
 \section{Automated Checks}
 The Spark tests in the Airflow image (20 tests) cover the Workshop~3 Gold layer and every Workshop~4 addition: duplicate, schema and outlier rates, box-plot statistics, daily volume, thresholds and statuses, the historical-versus-current comparison and its Poisson probability. The dashboard tests in the project environment (15 tests) cover the selection of the newest complete Gold pair, older pairs without the newer columns, the reserved palette, the time windows, the wording rules of the main message, the order of the bulletin table, and an explanatory message instead of an error when a chart has no data. Finally, the repository was cloned into an empty folder on 28 November 2026, the dashboard image was built without cache, and both applications were started with only the commands of the README; each served its full layout with the publication \texttt{20261128\_040949} and no local data.
 
