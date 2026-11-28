@@ -112,21 +112,24 @@ def latest_pair(folder=None):
     raise FileNotFoundError(f"No complete Gold pair in {folder} or {folder / 'samples'}: run the gold_processing DAG")
 
 
-def load(pair):
+def load(pair, *, include_storytelling=True):
+    """Load Governance and, when requested, Storytelling from a complete pair."""
     pair.governance = _read(pair.governance_path, GOVERNANCE_COLUMNS)
-    pair.storytelling = _read(pair.storytelling_path, STORYTELLING_COLUMNS)
+    if include_storytelling:
+        pair.storytelling = _read(pair.storytelling_path, STORYTELLING_COLUMNS)
     return pair
 
 
 class GoldCache:
     """Reads a Gold pair once and again only when a newer complete pair is published."""
 
-    def __init__(self, folder=None):
+    def __init__(self, folder=None, *, include_storytelling=True):
         self.folder = folder
+        self.include_storytelling = include_storytelling
         self.pair = None
 
     def get(self):
         newest = latest_pair(self.folder)
         if self.pair is None or (newest.stamp, newest.from_samples) != (self.pair.stamp, self.pair.from_samples):
-            self.pair = load(newest)
+            self.pair = load(newest, include_storytelling=self.include_storytelling)
         return self.pair
